@@ -11,7 +11,7 @@ import (
 // The options parameter allows customization of the registry options during creation.
 func Create[T any](ctx Ctx, options ...func(opts *RegistryOpts)) (T, error) {
 	registryOpts := RegistryOpts{
-		Factory:        Instance,
+		Registry:       Instance,
 		InjectionToken: "",
 	}
 
@@ -29,7 +29,7 @@ func Create[T any](ctx Ctx, options ...func(opts *RegistryOpts)) (T, error) {
 // Returns the created configuration instance and any error that occurred during creation.
 func CreateConfiguration[T any](ctx Ctx, options ...func(opts *RegistryOpts)) (T, error) {
 	registryOpts := RegistryOpts{
-		Factory:        Instance,
+		Registry:       Instance,
 		InjectionToken: "",
 	}
 
@@ -47,7 +47,7 @@ func CreateConfiguration[T any](ctx Ctx, options ...func(opts *RegistryOpts)) (T
 // Returns an instance of type T and any error that occurred during creation.
 func CreatePair[T any, CT any](ctx Ctx, options ...func(opts *RegistryOpts)) (T, error) {
 	registryOpts := RegistryOpts{
-		Factory:        Instance,
+		Registry:       Instance,
 		InjectionToken: "",
 	}
 
@@ -76,8 +76,8 @@ func createPairWithToken[T any, CT any | NoConfig](ctx Ctx, opts RegistryOpts) (
 		token           = opts.InjectionToken
 	)
 
-	if opts.Factory != nil {
-		f = opts.Factory
+	if opts.Registry != nil {
+		f = opts.Registry
 	}
 
 	ctType := TypeName[CT](token)
@@ -126,8 +126,8 @@ func createSingleWithToken[T any](ctx Ctx, opts RegistryOpts) (T, error) {
 		token           = opts.InjectionToken
 	)
 
-	if opts.Factory != nil {
-		f = opts.Factory
+	if opts.Registry != nil {
+		f = opts.Registry
 	}
 
 	tType := TypeName[T](token)
@@ -136,7 +136,8 @@ func createSingleWithToken[T any](ctx Ctx, opts RegistryOpts) (T, error) {
 		return typedInstance, errors.Wrap(err, "failed to create dependency", ErrorCreatingDependencyErrorCode)
 	}
 
-	typedInstance, ok = unknownInstance.(T)
+	// Try direct type assertion first
+	typedInstance, ok = safeTypeAssert[T](unknownInstance)
 	if !ok {
 		panic(errors.New("failed to cast dependency to expected type", DependencyTypeMismatchErrorCode))
 	}
@@ -157,8 +158,8 @@ func createSingleConfigurationWithToken[CT any](ctx Ctx, opts RegistryOpts) (CT,
 		token           = opts.InjectionToken
 	)
 
-	if opts.Factory != nil {
-		f = opts.Factory
+	if opts.Registry != nil {
+		f = opts.Registry
 	}
 
 	tType := TypeName[CT](token)
@@ -167,7 +168,7 @@ func createSingleConfigurationWithToken[CT any](ctx Ctx, opts RegistryOpts) (CT,
 		return typedInstance, errors.Wrap(err, "failed to create dependency", ErrorCreatingDependencyErrorCode)
 	}
 
-	typedInstance, ok = unknownInstance.(CT)
+	typedInstance, ok = safeTypeAssert[CT](unknownInstance)
 	if !ok {
 		panic(errors.New("failed to cast dependency to expected type", DependencyTypeMismatchErrorCode))
 	}

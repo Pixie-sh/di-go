@@ -12,7 +12,7 @@ func RegisterPair[T any, CT any](
 	fnCT TypedCreateInstanceNoConfigHandler[CT],
 	options ...func(opts *RegistryOpts)) error {
 	registryOpts := RegistryOpts{
-		Factory:        Instance,
+		Registry:       Instance,
 		InjectionToken: "",
 	}
 
@@ -30,7 +30,7 @@ func RegisterPair[T any, CT any](
 // Options can be provided to customize the registration behavior.
 func Register[T any](fn TypedCreateInstanceNoConfigHandler[T], options ...func(*RegistryOpts)) error {
 	registryOpts := RegistryOpts{
-		Factory:        Instance,
+		Registry:       Instance,
 		InjectionToken: "",
 	}
 
@@ -48,7 +48,7 @@ func Register[T any](fn TypedCreateInstanceNoConfigHandler[T], options ...func(*
 // Options can be provided to customize the registration behavior.
 func RegisterConfiguration[T any](fn TypedCreateInstanceNoConfigHandler[T], options ...func(*RegistryOpts)) error {
 	registryOpts := RegistryOpts{
-		Factory:        Instance,
+		Registry:       Instance,
 		InjectionToken: "",
 	}
 
@@ -70,8 +70,8 @@ func registerPairWithToken[T any, CT any](fn TypedCreateInstanceHandler[T, CT], 
 		token = opts.InjectionToken
 	)
 
-	if opts.Factory != nil {
-		f = opts.Factory
+	if opts.Registry != nil {
+		f = opts.Registry
 	}
 
 	ctType := TypeName[CT](token)
@@ -103,8 +103,8 @@ func registerSingleWithToken[T any](fn TypedCreateInstanceNoConfigHandler[T], op
 		token = opts.InjectionToken
 	)
 
-	if opts.Factory != nil {
-		f = opts.Factory
+	if opts.Registry != nil {
+		f = opts.Registry
 	}
 
 	err = f.Register(TypeName[T](token), func(ctx Ctx, opts RegistryOpts, _ any) (any, error) {
@@ -126,8 +126,8 @@ func registerSingleConfigurationWithToken[T any](fn TypedCreateInstanceNoConfigH
 		token = opts.InjectionToken
 	)
 
-	if opts.Factory != nil {
-		f = opts.Factory
+	if opts.Registry != nil {
+		f = opts.Registry
 	}
 
 	err = f.RegisterConfiguration(TypeName[T](token), func(ctx Ctx, opts RegistryOpts) (any, error) {

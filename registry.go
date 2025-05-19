@@ -4,7 +4,7 @@ import (
 	"github.com/pixie-sh/errors-go"
 )
 
-var Instance Registry = newRegistry()
+var Instance Registry = NewRegistry()
 
 // Registry provides a dependency injection container interface for managing
 // dependencies and their configurations. It allows registration and creation
@@ -49,7 +49,7 @@ type diRegistry struct {
 	configurationRegistrations map[string]configurationRegistration
 }
 
-func newRegistry() diRegistry {
+func NewRegistry() diRegistry {
 	return diRegistry{registrations: map[string]registration{}, configurationRegistrations: map[string]configurationRegistration{}}
 }
 
