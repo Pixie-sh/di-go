@@ -7,11 +7,13 @@ import (
 )
 
 type ConfigRawData = map[string]interface{}
-type ConfigData = any
+type ConfigData interface {
+	LookupNode(lookupPath string) (any, error)
+}
 
-// Ctx extends the standard context.Context interface with additional
+// Context extends the standard context.NewContext interface with additional
 // functionality for configuration management and access to the underlying context
-type Ctx interface {
+type Context interface {
 	goctx.Context
 
 	RawConfiguration() ConfigRawData
@@ -19,7 +21,7 @@ type Ctx interface {
 	Inner() goctx.Context
 }
 
-// context implements the Ctx interface and wraps the standard context
+// context implements the Context interface and wraps the standard context
 // with additional configuration data
 type context struct {
 	ctx goctx.Context
@@ -55,11 +57,11 @@ func (s *context) Inner() goctx.Context {
 	return s.ctx
 }
 
-// Context creates a new Ctx instance with optional context and configuration data.
-// It accepts variable arguments that can be a context.Context, Ctx, ConfigRawData or ConfigData.
+// NewContext creates a new Context instance with optional context and configuration data.
+// It accepts variable arguments that can be a context.NewContext, Context, ConfigRawData or ConfigData.
 // If no context is provided, it uses context.Background().
-// New Context will inherit configuration from parent contexts unless explicitly overridden.
-func Context(args ...any) Ctx {
+// New NewContext will inherit configuration from parent contexts unless explicitly overridden.
+func NewContext(args ...any) Context {
 	var ctx goctx.Context
 	var parentDiCtx *context
 	var rawData ConfigRawData
@@ -68,7 +70,7 @@ func Context(args ...any) Ctx {
 
 	for i := 0; i < len(args); i++ {
 		switch v := args[i].(type) {
-		case Ctx:
+		case Context:
 			var ok bool
 			parentDiCtx, ok = v.(*context)
 			if ok {

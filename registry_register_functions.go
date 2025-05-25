@@ -76,14 +76,14 @@ func registerPairWithToken[T any, CT any](fn TypedCreateInstanceHandler[T, CT], 
 
 	ctType := TypeName[CT](token)
 	tType := TypeName[T](token)
-	err = f.RegisterConfiguration(PairTypeName(ctType, tType), func(ctx Ctx, opts RegistryOpts) (any, error) {
+	err = f.RegisterConfiguration(PairTypeName(ctType, tType), func(ctx Context, opts RegistryOpts) (any, error) {
 		return fnCT(ctx, opts)
 	}, opts)
 	if err != nil {
 		return errors.Wrap(err, "failed to RegisterPair configuration creator", ErrorCreatingDependencyErrorCode)
 	}
 
-	err = f.Register(PairTypeName(tType, ctType), func(ctx Ctx, opts RegistryOpts, config any) (any, error) {
+	err = f.Register(PairTypeName(tType, ctType), func(ctx Context, opts RegistryOpts, config any) (any, error) {
 		return fn(ctx, opts, config.(CT))
 	}, opts)
 
@@ -107,7 +107,7 @@ func registerSingleWithToken[T any](fn TypedCreateInstanceNoConfigHandler[T], op
 		f = opts.Registry
 	}
 
-	err = f.Register(TypeName[T](token), func(ctx Ctx, opts RegistryOpts, _ any) (any, error) {
+	err = f.Register(TypeName[T](token), func(ctx Context, opts RegistryOpts, _ any) (any, error) {
 		return fn(ctx, opts)
 	}, opts)
 	if err != nil {
@@ -130,7 +130,7 @@ func registerSingleConfigurationWithToken[T any](fn TypedCreateInstanceNoConfigH
 		f = opts.Registry
 	}
 
-	err = f.RegisterConfiguration(TypeName[T](token), func(ctx Ctx, opts RegistryOpts) (any, error) {
+	err = f.RegisterConfiguration(TypeName[T](token), func(ctx Context, opts RegistryOpts) (any, error) {
 		return fn(ctx, opts)
 	}, opts)
 	if err != nil {
