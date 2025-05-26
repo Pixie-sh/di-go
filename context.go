@@ -121,3 +121,7 @@ func NewContext(args ...any) Context {
 
 	return &context{ctx, rawData, cfg}
 }
+
+func NewContextWithConfig(cfg ConfigData, args ...any) Context {
+	return NewContext(append(args, cfg)...)
+}
