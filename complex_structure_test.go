@@ -204,7 +204,7 @@ func Test_NamedInstances(t *testing.T) {
 			return &DatabaseConfig{ConnectionString: "mongodb://primary:27017"}, nil
 		},
 		WithRegistry(customFactory),
-		WithInjectionToken("primary"),
+		WithToken("primary"),
 	))
 
 	require.NoError(t, RegisterPair[*Database, *DatabaseConfig](
@@ -218,14 +218,14 @@ func Test_NamedInstances(t *testing.T) {
 			return &DatabaseConfig{ConnectionString: "mongodb://replica:27017"}, nil
 		},
 		WithRegistry(customFactory),
-		WithInjectionToken("replica"),
+		WithToken("replica"),
 	))
 
 	// Create the named instances
 	primaryDB, err := CreatePair[*Database, *DatabaseConfig](
 		NewContext(),
 		WithRegistry(customFactory),
-		WithInjectionToken("primary"),
+		WithToken("primary"),
 	)
 	require.NoError(t, err)
 	require.NotNil(t, primaryDB)
@@ -233,7 +233,7 @@ func Test_NamedInstances(t *testing.T) {
 	replicaDB, err := CreatePair[*Database, *DatabaseConfig](
 		NewContext(),
 		WithRegistry(customFactory),
-		WithInjectionToken("replica"),
+		WithToken("replica"),
 	)
 	require.NoError(t, err)
 	require.NotNil(t, replicaDB)

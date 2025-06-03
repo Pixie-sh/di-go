@@ -7,7 +7,7 @@ import (
 )
 
 type ConfigRawData = map[string]interface{}
-type ConfigData interface {
+type Configuration interface {
 	LookupNode(lookupPath string) (any, error)
 }
 
@@ -17,7 +17,7 @@ type Context interface {
 	goctx.Context
 
 	RawConfiguration() ConfigRawData
-	Configuration() ConfigData
+	Configuration() Configuration
 	Inner() goctx.Context
 }
 
@@ -27,13 +27,13 @@ type context struct {
 	ctx goctx.Context
 
 	rawCfg ConfigRawData
-	cfg    ConfigData
+	cfg    Configuration
 }
 
 func (s *context) RawConfiguration() ConfigRawData {
 	return s.rawCfg
 }
-func (s *context) Configuration() ConfigData {
+func (s *context) Configuration() Configuration {
 	return s.cfg
 }
 
@@ -58,14 +58,14 @@ func (s *context) Inner() goctx.Context {
 }
 
 // NewContext creates a new Context instance with optional context and configuration data.
-// It accepts variable arguments that can be a context.NewContext, Context, ConfigRawData or ConfigData.
+// It accepts variable arguments that can be a context.NewContext, Context, ConfigRawData or Configuration.
 // If no context is provided, it uses context.Background().
 // New NewContext will inherit configuration from parent contexts unless explicitly overridden.
 func NewContext(args ...any) Context {
 	var ctx goctx.Context
 	var parentDiCtx *context
 	var rawData ConfigRawData
-	var cfg ConfigData
+	var cfg Configuration
 	var err error
 
 	for i := 0; i < len(args); i++ {
@@ -85,7 +85,7 @@ func NewContext(args ...any) Context {
 			rawData = v
 			args = append(args[:i], args[i+1:]...)
 			i--
-		case ConfigData:
+		case Configuration:
 			cfg = v
 			args = append(args[:i], args[i+1:]...)
 			i--
@@ -122,6 +122,6 @@ func NewContext(args ...any) Context {
 	return &context{ctx, rawData, cfg}
 }
 
-func NewContextWithConfig(cfg ConfigData, args ...any) Context {
+func NewContextWithConfig(cfg Configuration, args ...any) Context {
 	return NewContext(append(args, cfg)...)
 }

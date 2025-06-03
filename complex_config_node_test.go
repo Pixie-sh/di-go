@@ -1,7 +1,6 @@
 package di
 
 import (
-	"github.com/goccy/go-json"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"testing"
@@ -23,8 +22,9 @@ type chargebeeConfig struct {
 
 // paymentBusinessConfig represents payment business layer configuration
 type paymentBusinessConfig struct {
-	Cache     redisConfig     `json:"cache"`
-	Chargebee chargebeeConfig `json:"chargebee"`
+	Cache        singletonConfig `json:"cache"`
+	SessionCache singletonConfig `json:"session_cache"`
+	Chargebee    chargebeeConfig `json:"chargebee"`
 }
 
 type singletonConfig struct {
@@ -41,9 +41,139 @@ func (c complexConfig) LookupNode(lookupPath string) (any, error) {
 	return ConfigurationNodeLookup(c, lookupPath)
 }
 
-var _ ConfigData = complexConfig{}
+var _ Configuration = complexConfig{}
+
+type complexSessionCache struct {
+	singletonCache redisConfig
+}
+
+type complexPaymentBizLayer struct {
+	chargebee    chargebeeConfig
+	cache        complexSessionCache
+	sessionCache complexSessionCache
+}
 
 const jsonCfg = `
+{
+	"$shared": {
+		"cache": {
+			"user": "qux",
+			"db": 2,
+				"host": "https://redis-stagig.example.com:6379"
+			}
+	},
+	"singleton": ${di.$shared},
+	"payment_business_layer": {
+		"session_cache": {
+			"cache": ${di.$shared.cache}
+		},
+		"cache": {
+			"cache": {
+				"user": "not-singleton",
+				"db": 4,
+				"host": "https://not-singleton-stagig.example.com:6379"
+			}
+		}, 
+		"chargebee": {
+			"user": "admin@company.com",	
+			"password": "admin1234",	
+			"private_key": "123123abd"
+		}	 
+	}
+}
+`
+
+func TestLoadConfigWithinInjection(t *testing.T) {
+	var config complexConfig
+	err := UnmarshalJSONWithDIResolution([]byte(jsonCfg), &config)
+	require.NoError(t, err, "Failed to unmarshal complex config")
+
+	_ = RegisterConfiguration[redisConfig](func(context Context, opts RegistryOpts) (redisConfig, error) {
+		return ConfigurationLookup[redisConfig](context, opts)
+	})
+	_ = RegisterConfiguration[chargebeeConfig](func(context Context, opts RegistryOpts) (chargebeeConfig, error) {
+		return ConfigurationLookup[chargebeeConfig](context, opts)
+	})
+	_ = Register[complexSessionCache](func(c Context, opts RegistryOpts) (complexSessionCache, error) {
+		cache, err := CreateConfiguration[redisConfig](c, WithOpts(opts), WithConfigNode("cache"))
+		if err != nil {
+			return complexSessionCache{}, err
+		}
+
+		return complexSessionCache{cache}, nil
+	})
+
+	_ = Register[complexPaymentBizLayer](func(c Context, opts RegistryOpts) (complexPaymentBizLayer, error) {
+		chargebee, err := CreateConfiguration[chargebeeConfig](c, WithOpts(opts), WithConfigNode("chargebee"))
+		if err != nil {
+			return complexPaymentBizLayer{}, err
+		}
+
+		singletonCache, err := Create[complexSessionCache](c, WithOpts(opts), WithConfigNode("session_cache"))
+		if err != nil {
+			return complexPaymentBizLayer{}, err
+		}
+
+		cache, err := Create[complexSessionCache](c, WithOpts(opts), WithConfigNode("cache"))
+		if err != nil {
+			return complexPaymentBizLayer{}, err
+		}
+
+		cpbl := complexPaymentBizLayer{
+			cache:        cache,
+			chargebee:    chargebee,
+			sessionCache: singletonCache,
+		}
+
+		return cpbl, nil
+	}, WithToken("payment_business_layer"))
+
+	diCtx := NewContext(config)
+	paymentBizLayer, err := Create[complexPaymentBizLayer](diCtx, WithToken("payment_business_layer"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Log(paymentBizLayer)
+}
+
+func TestLoadComplexConfig(t *testing.T) {
+	var config complexConfig
+	err := UnmarshalJSONWithDIResolution([]byte(jsonCfg), &config)
+	require.NoError(t, err, "Failed to unmarshal complex config")
+
+	// Validate singleton Redis config
+	assert.Equal(t, "qux", config.Singleton.Cache.User)
+	assert.Equal(t, 2, config.Singleton.Cache.DB)
+	assert.Equal(t, "https://redis-stagig.example.com:6379", config.Singleton.Cache.Host)
+
+	// Validate payment business layer cache config
+	assert.Equal(t, "not-singleton", config.PaymentBusinessLayer.Cache.Cache.User)
+	assert.Equal(t, 4, config.PaymentBusinessLayer.Cache.Cache.DB)
+	assert.Equal(t, "https://not-singleton-stagig.example.com:6379", config.PaymentBusinessLayer.Cache.Cache.Host)
+
+	// Validate payment business layer Chargebee config
+	assert.Equal(t, "admin@company.com", config.PaymentBusinessLayer.Chargebee.User)
+	assert.Equal(t, "admin1234", config.PaymentBusinessLayer.Chargebee.Password)
+	assert.Equal(t, "123123abd", config.PaymentBusinessLayer.Chargebee.PrivateKey)
+}
+
+func TestInjectComplexConfig(t *testing.T) {
+	var config complexConfig
+	err := UnmarshalJSONWithDIResolution([]byte(jsonCfg), &config)
+	require.NoError(t, err, "Failed to unmarshal complex config")
+
+	v, err := config.LookupNode("singleton.cache.user")
+	assert.NoError(t, err)
+	assert.Equal(t, "qux", v.(string))
+
+	v, err = config.LookupNode("singleton.cache")
+	assert.NoError(t, err)
+	assert.Equal(t, "qux", v.(redisConfig).User)
+}
+
+func TestDIResolution(t *testing.T) {
+	const jsonCfg = `
 {
 	"singleton": {
 		"cache": {
@@ -53,6 +183,7 @@ const jsonCfg = `
 		}
 	},
 	"payment_business_layer": {
+		"session_cache": "${di.singleton}",
 		"cache": {
 			"user": "not-singleton",
 			"db": 4,
@@ -67,43 +198,13 @@ const jsonCfg = `
 }
 `
 
-func TestLoadComplexConfig(t *testing.T) {
 	var config complexConfig
-	err := json.Unmarshal([]byte(jsonCfg), &config)
-	require.NoError(t, err, "Failed to unmarshal complex config")
+	err := UnmarshalJSONWithDIResolution([]byte(jsonCfg), &config)
+	require.NoError(t, err, "Failed to unmarshal complex config with DI resolution")
 
-	// Validate singleton Redis config
+	// Test the resolved values
 	assert.Equal(t, "qux", config.Singleton.Cache.User)
-	assert.Equal(t, 2, config.Singleton.Cache.DB)
-	assert.Equal(t, "https://redis-stagig.example.com:6379", config.Singleton.Cache.Host)
-
-	// Validate payment business layer cache config
-	assert.Equal(t, "not-singleton", config.PaymentBusinessLayer.Cache.User)
-	assert.Equal(t, 4, config.PaymentBusinessLayer.Cache.DB)
-	assert.Equal(t, "https://not-singleton-stagig.example.com:6379", config.PaymentBusinessLayer.Cache.Host)
-
-	// Validate payment business layer Chargebee config
-	assert.Equal(t, "admin@company.com", config.PaymentBusinessLayer.Chargebee.User)
-	assert.Equal(t, "admin1234", config.PaymentBusinessLayer.Chargebee.Password)
-	assert.Equal(t, "123123abd", config.PaymentBusinessLayer.Chargebee.PrivateKey)
+	assert.Equal(t, "qux", config.PaymentBusinessLayer.SessionCache.Cache.User) // This should now work
+	assert.Equal(t, 2, config.PaymentBusinessLayer.SessionCache.Cache.DB)
+	assert.Equal(t, "https://redis-stagig.example.com:6379", config.PaymentBusinessLayer.SessionCache.Cache.Host)
 }
-
-
-func TestInjectComplexConfig(t *testing.T) {
-	var config complexConfig
-	err := json.Unmarshal([]byte(jsonCfg), &config)
-	require.NoError(t, err, "Failed to unmarshal complex config")
-
-	v, err := config.LookupNode("singleton.cache.user")
-	assert.NoError(t, err)
-	assert.Equal(t, "qux", v.(string))
-
-	v, err = config.LookupNode("singleton.cache")
-	assert.NoError(t, err)
-	assert.Equal(t, "qux", v.(redisConfig).User)
-}
-
-
-
-
-

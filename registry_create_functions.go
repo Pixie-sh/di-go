@@ -2,7 +2,6 @@ package di
 
 import (
 	"reflect"
-	"strings"
 
 	"github.com/pixie-sh/errors-go"
 )
@@ -41,102 +40,6 @@ func CreateConfiguration[T any](ctx Context, options ...func(opts *RegistryOpts)
 	}
 
 	return createSingleConfigurationWithToken[T](ctx, registryOpts)
-}
-
-func ConfigurationLookup[T any](ctx Context, opts RegistryOpts) (T, error) {
-	var result T
-
-	if ctx == nil {
-		return result, errors.New("di.Context cannot be nil", ConfigurationLookupErrorCode)
-	}
-
-	if ctx.Configuration() == nil {
-		return result, errors.New("di.Context.Configuration() cannot be nil", ConfigurationLookupErrorCode)
-	}
-
-
-	lookupPath, err := lookupPath(ctx, opts)
-	if err != nil {
-		return result, errors.Wrap(err, "lookupPath cannot be empty", ConfigurationLookupErrorCode)
-	}
-
-	abstractNode, err := ctx.Configuration().LookupNode(lookupPath)
-	if err != nil || abstractNode == nil {
-		return result, errors.Wrap(err, "di.Context.Configuration().LookupNode() failed", ConfigurationLookupErrorCode)
-	}
-
-	typed, good := safeTypeAssert[T](abstractNode)
-	if !good {
-		return result, errors.New("di.Context.Configuration().LookupNode() returned an invalid type", ConfigurationLookupErrorCode)
-	}
-
-	return typed, nil
-}
-
-func ConfigurationNodeLookup(c any, path string) (any, error) {
-	if path == "" {
-		return c, nil
-	}
-
-	parts := strings.Split(path, ".")
-	current := reflect.ValueOf(c)
-
-	for _, part := range parts {
-		// If current value is a pointer, dereference it
-		if current.Kind() == reflect.Ptr {
-			if current.IsNil() {
-				return nil, errors.New("nil pointer encountered in path")
-			}
-			current = current.Elem()
-		}
-
-		// Only struct types can have fields
-		if current.Kind() != reflect.Struct {
-			return nil, errors.New("cannot access field '" + part + "' on non-struct type")
-		}
-
-		// Get the field by name
-		field := current.FieldByName(part)
-		if !field.IsValid() {
-			// Try to find a JSON tag that matches the part
-			foundField := false
-			t := current.Type()
-			for i := 0; i < t.NumField(); i++ {
-				structField := t.Field(i)
-				jsonTag := structField.Tag.Get("json")
-				if jsonTag == part || strings.Split(jsonTag, ",")[0] == part {
-					field = current.Field(i)
-					foundField = true
-					break
-				}
-			}
-			if !foundField {
-				return nil, errors.New("field '" + part + "' not found")
-			}
-		}
-
-		current = field
-	}
-
-	// Return the interface value
-	return current.Interface(), nil
-}
-
-func lookupPath(_ Context, opts RegistryOpts) (string, error) {
-	if len(opts.InjectionToken) == 0 && len(opts.ConfigNode) == 0{
-		return "", errors.New("di.RegistryOpts.InjectionToken and di.RegistryOpts.ConfigNode cannot be both empty", ConfigurationLookupErrorCode)
-	}
-
-	lp := opts.ConfigNode
-	if len(opts.InjectionToken) > 0 {
-		lp = opts.InjectionToken.String() + "." + opts.ConfigNode
-	}
-
-	if len(lp) == 0 {
-		return "", errors.New("lookup path cannot be empty", ConfigurationLookupErrorCode)
-	}
-
-	return lp, nil
 }
 
 // CreatePair creates a pair of instances where T is the main type and CT is the configuration type.
@@ -290,3 +193,4 @@ func createSingleConfigurationWithToken[CT any](ctx Context, opts RegistryOpts) 
 
 	return typedInstance, nil
 }
+

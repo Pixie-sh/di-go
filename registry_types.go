@@ -99,9 +99,9 @@ func WithRegistry(instance Registry) func(opts *RegistryOpts) {
 	}
 }
 
-// WithInjectionToken returns a function that sets the injection token in the options.
+// WithToken returns a function that sets the injection token in the options.
 // This enables type-specific registration and resolution in the dependency injection system.
-func WithInjectionToken(token InjectionToken) func(opts *RegistryOpts) {
+func WithToken(token InjectionToken) func(opts *RegistryOpts) {
 	return func(opts *RegistryOpts) {
 		opts.InjectionToken = token
 	}
@@ -111,6 +111,11 @@ func WithInjectionToken(token InjectionToken) func(opts *RegistryOpts) {
 // This allows specifying which configuration path should be used for dependency management.
 func WithConfigNode(path string) func(opts *RegistryOpts) {
 	return func(opts *RegistryOpts) {
+		if len(opts.ConfigNode) > 0 {
+			opts.ConfigNode = opts.ConfigNode + "." + path
+			return
+		}
+
 		opts.ConfigNode = path
 	}
 }

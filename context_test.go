@@ -7,8 +7,9 @@ import (
 	"time"
 )
 
-var _ ConfigData = SimpleConfig{}
-// Simple map that implements ConfigData for testing
+var _ Configuration = SimpleConfig{}
+
+// Simple map that implements Configuration for testing
 type SimpleConfig map[string]interface{}
 
 func (s SimpleConfig) LookupNode(lookupPath string) (any, error) {
