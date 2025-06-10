@@ -7,12 +7,18 @@ import (
 	"time"
 )
 
-// Simple map that implements ConfigData for testing
+var _ Configuration = SimpleConfig{}
+
+// Simple map that implements Configuration for testing
 type SimpleConfig map[string]interface{}
 
+func (s SimpleConfig) LookupNode(lookupPath string) (any, error) {
+	panic("implement me")
+}
+
 func TestContext_NoArgs(t *testing.T) {
-	// Test Context() with no arguments
-	ctx := Context()
+	// Test NewContext() with no arguments
+	ctx := NewContext()
 
 	// Should use background context internally
 	if ctx.Inner() == nil {
@@ -34,9 +40,9 @@ func TestContext_NoArgs(t *testing.T) {
 }
 
 func TestContext_WithStdContext(t *testing.T) {
-	// Test Context with standard context
+	// Test NewContext with standard context
 	stdCtx := goctx.WithValue(goctx.Background(), "key", "value")
-	ctx := Context(stdCtx)
+	ctx := NewContext(stdCtx)
 
 	// Verify the inner context is preserved
 	if ctx.Value("key") != "value" {
@@ -49,13 +55,13 @@ func TestContext_WithStdContext(t *testing.T) {
 }
 
 func TestContext_WithRawConfig(t *testing.T) {
-	// Test Context with raw configuration
+	// Test NewContext with raw configuration
 	rawCfg := ConfigRawData{
 		"name":  "test",
 		"value": 123,
 	}
 
-	ctx := Context(rawCfg)
+	ctx := NewContext(rawCfg)
 
 	// Verify configuration is preserved
 	if !reflect.DeepEqual(ctx.RawConfiguration(), rawCfg) {
@@ -75,7 +81,7 @@ func TestContext_WithConfig(t *testing.T) {
 		"Value": 123,
 	}
 
-	ctx := Context(cfg)
+	ctx := NewContext(cfg)
 
 	// Check that configuration was properly stored
 	if ctx.Configuration() == nil {
@@ -98,10 +104,10 @@ func TestContext_WithConfig(t *testing.T) {
 func TestContext_WithParentCtx(t *testing.T) {
 	// Create a parent context
 	parentRawCfg := ConfigRawData{"parent": true}
-	parentCtx := Context(parentRawCfg)
+	parentCtx := NewContext(parentRawCfg)
 
 	// Create child context with parent
-	ctx := Context(parentCtx)
+	ctx := NewContext(parentCtx)
 
 	// Should inherit parent's config
 	if ctx.RawConfiguration()["parent"] != true {
@@ -112,11 +118,11 @@ func TestContext_WithParentCtx(t *testing.T) {
 func TestContext_WithParentAndOverrides(t *testing.T) {
 	// Create a parent context with config
 	parentRawCfg := ConfigRawData{"parent": true, "shared": "parent"}
-	parentCtx := Context(parentRawCfg)
+	parentCtx := NewContext(parentRawCfg)
 
 	// Create child with overridden config
 	childRawCfg := ConfigRawData{"child": true, "shared": "child"}
-	ctx := Context(parentCtx, childRawCfg)
+	ctx := NewContext(parentCtx, childRawCfg)
 
 	// Verify overrides worked
 	if ctx.RawConfiguration()["parent"] != nil {
@@ -137,7 +143,7 @@ func TestContext_WithStdContextAndConfig(t *testing.T) {
 	stdCtx := goctx.WithValue(goctx.Background(), "key", "value")
 	rawCfg := ConfigRawData{"name": "test"}
 
-	ctx := Context(stdCtx, rawCfg)
+	ctx := NewContext(stdCtx, rawCfg)
 
 	// Verify both were applied
 	if ctx.Value("key") != "value" {
@@ -158,10 +164,10 @@ func TestContext_WithMultipleTypes(t *testing.T) {
 
 	// Create a parent context
 	parentRawCfg := ConfigRawData{"parent": true}
-	parentCtx := Context(parentRawCfg)
+	parentCtx := NewContext(parentRawCfg)
 
 	// Create context with all types
-	ctx := Context(parentCtx, stdCtx, cfg)
+	ctx := NewContext(parentCtx, stdCtx, cfg)
 
 	// Verify all arguments were correctly processed
 	if ctx.Value("key") != "value" {
@@ -181,13 +187,12 @@ func TestContext_WithMultipleTypes(t *testing.T) {
 func TestContext_PrimitiveConfig(t *testing.T) {
 	// Test with a primitive value as config
 	// This tests the Decode function indirectly
-	cfg := struct {
-		Val int
-	} {
-		Val: 42,
+	var cfg = SimpleConfig{
+		"Name":  "test",
+		"Value": 42,
 	}
 
-	ctx := Context(cfg)
+	ctx := NewContext(cfg)
 
 	// The raw configuration should have a "value" field with 42
 	// assuming the Decode function works as expected
@@ -202,20 +207,14 @@ func TestContext_PrimitiveConfig(t *testing.T) {
 }
 
 func TestContext_StructConfig(t *testing.T) {
-	// Define a simple struct for configuration
-	type TestConfig struct {
-		Name  string
-		Value int
-	}
-
 	// Create an instance
-	cfg := TestConfig{
-		Name:  "test",
-		Value: 42,
+	cfg := SimpleConfig{
+		"Name":  "test",
+		"Value": 42,
 	}
 
 	// Create context with the struct config
-	ctx := Context(cfg)
+	ctx := NewContext(cfg)
 
 	// Check that the original struct is preserved as Configuration
 	if !reflect.DeepEqual(ctx.Configuration(), cfg) {
@@ -235,7 +234,7 @@ func TestContext_Deadline(t *testing.T) {
 	stdCtx, cancel := goctx.WithDeadline(goctx.Background(), deadline)
 	defer cancel()
 
-	ctx := Context(stdCtx)
+	ctx := NewContext(stdCtx)
 
 	gotDeadline, ok := ctx.Deadline()
 	if !ok {
@@ -251,7 +250,7 @@ func TestContext_Done(t *testing.T) {
 	// Test Done channel is properly passed through
 	stdCtx, cancel := goctx.WithCancel(goctx.Background())
 
-	ctx := Context(stdCtx)
+	ctx := NewContext(stdCtx)
 
 	// Verify Done channel exists
 	if ctx.Done() == nil {
@@ -272,7 +271,7 @@ func TestContext_Err(t *testing.T) {
 	// Test Err is properly passed through
 	stdCtx, cancel := goctx.WithCancel(goctx.Background())
 
-	ctx := Context(stdCtx)
+	ctx := NewContext(stdCtx)
 
 	// Before cancel, Err should be nil
 	if ctx.Err() != nil {
@@ -291,7 +290,7 @@ func TestContext_Value(t *testing.T) {
 	stdCtx := goctx.WithValue(goctx.Background(), "key1", "value1")
 	stdCtx = goctx.WithValue(stdCtx, "key2", 123)
 
-	ctx := Context(stdCtx)
+	ctx := NewContext(stdCtx)
 
 	// Verify values can be retrieved
 	if ctx.Value("key1") != "value1" {

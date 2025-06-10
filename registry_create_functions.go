@@ -9,7 +9,7 @@ import (
 // Create creates a new instance of type T using the provided context and options.
 // It accepts generic type T and returns an instance of T along with any error that occurred.
 // The options parameter allows customization of the registry options during creation.
-func Create[T any](ctx Ctx, options ...func(opts *RegistryOpts)) (T, error) {
+func Create[T any](ctx Context, options ...func(opts *RegistryOpts)) (T, error) {
 	registryOpts := RegistryOpts{
 		Registry:       Instance,
 		InjectionToken: "",
@@ -21,13 +21,13 @@ func Create[T any](ctx Ctx, options ...func(opts *RegistryOpts)) (T, error) {
 		}
 	}
 
-	return createSingleWithToken[T](ctx, registryOpts)
+	return createSingleWithToken[T](ctx, &registryOpts)
 }
 
 // CreateConfiguration creates a new configuration instance of type T.
 // It uses the provided context and options to create a configuration object.
 // Returns the created configuration instance and any error that occurred during creation.
-func CreateConfiguration[T any](ctx Ctx, options ...func(opts *RegistryOpts)) (T, error) {
+func CreateConfiguration[T any](ctx Context, options ...func(opts *RegistryOpts)) (T, error) {
 	registryOpts := RegistryOpts{
 		Registry:       Instance,
 		InjectionToken: "",
@@ -39,13 +39,13 @@ func CreateConfiguration[T any](ctx Ctx, options ...func(opts *RegistryOpts)) (T
 		}
 	}
 
-	return createSingleConfigurationWithToken[T](ctx, registryOpts)
+	return createSingleConfigurationWithToken[T](ctx, &registryOpts)
 }
 
 // CreatePair creates a pair of instances where T is the main type and CT is the configuration type.
 // It accepts a context and optional registry options to customize the creation process.
 // Returns an instance of type T and any error that occurred during creation.
-func CreatePair[T any, CT any](ctx Ctx, options ...func(opts *RegistryOpts)) (T, error) {
+func CreatePair[T any, CT any](ctx Context, options ...func(opts *RegistryOpts)) (T, error) {
 	registryOpts := RegistryOpts{
 		Registry:       Instance,
 		InjectionToken: "",
@@ -57,14 +57,14 @@ func CreatePair[T any, CT any](ctx Ctx, options ...func(opts *RegistryOpts)) (T,
 		}
 	}
 
-	return createPairWithToken[T, CT](ctx, registryOpts)
+	return createPairWithToken[T, CT](ctx, &registryOpts)
 }
 
 // createPairWithToken is an internal function that creates a pair of instances using a specific token.
 // It handles both the creation of the configuration (CT) and the main type (T).
 // The CT type can be either a concrete type or NoConfig.
 // Returns the created instance of type T and any error that occurred.
-func createPairWithToken[T any, CT any | NoConfig](ctx Ctx, opts RegistryOpts) (T, error) {
+func createPairWithToken[T any, CT any | NoConfig](ctx Context, opts *RegistryOpts) (T, error) {
 	var (
 		f               = Instance
 		typedInstance   T
@@ -115,7 +115,7 @@ func createPairWithToken[T any, CT any | NoConfig](ctx Ctx, opts RegistryOpts) (
 // createSingleWithToken is an internal function that creates a single instance of type T using a token.
 // It uses the provided context and registry options to create the instance.
 // Returns the created instance and any error that occurred during creation.
-func createSingleWithToken[T any](ctx Ctx, opts RegistryOpts) (T, error) {
+func createSingleWithToken[T any](ctx Context, opts *RegistryOpts) (T, error) {
 	var (
 		f               = Instance
 		typedInstance   T
@@ -132,8 +132,17 @@ func createSingleWithToken[T any](ctx Ctx, opts RegistryOpts) (T, error) {
 
 	tType := TypeName[T](token)
 	unknownInstance, err = f.Create(ctx, tType, noopCfg, opts)
-	if err != nil {
-		return typedInstance, errors.Wrap(err, "failed to create dependency", ErrorCreatingDependencyErrorCode)
+	_, isMissing := errors.Has(err, DependencyMissingErrorCode)
+	if err != nil && (!isMissing || len(token) == 0) {
+		return typedInstance, errors.Wrap(err, "failed to create dependency first try", ErrorCreatingDependencyErrorCode)
+	}
+
+	if isMissing {
+		tType = TypeName[T]()
+		unknownInstance, err = f.Create(ctx, tType, noopCfg, opts)
+		if err != nil {
+			return typedInstance, errors.Wrap(err, "failed to create dependency second try", ErrorCreatingDependencyErrorCode)
+		}
 	}
 
 	// Try direct type assertion first
@@ -148,7 +157,7 @@ func createSingleWithToken[T any](ctx Ctx, opts RegistryOpts) (T, error) {
 // createSingleConfigurationWithToken is an internal function that creates a configuration instance.
 // It creates a single configuration of type CT using the provided context and registry options.
 // Returns the created configuration instance and any error that occurred.
-func createSingleConfigurationWithToken[CT any](ctx Ctx, opts RegistryOpts) (CT, error) {
+func createSingleConfigurationWithToken[CT any](ctx Context, opts *RegistryOpts) (CT, error) {
 	var (
 		f               = Instance
 		typedInstance   CT
@@ -164,8 +173,17 @@ func createSingleConfigurationWithToken[CT any](ctx Ctx, opts RegistryOpts) (CT,
 
 	tType := TypeName[CT](token)
 	unknownInstance, err = f.CreateConfiguration(ctx, tType, opts)
-	if err != nil {
-		return typedInstance, errors.Wrap(err, "failed to create dependency", ErrorCreatingDependencyErrorCode)
+	_, isMissing := errors.Has(err, DependencyMissingErrorCode)
+	if err != nil && (!isMissing || len(token) == 0) {
+		return typedInstance, errors.Wrap(err, "failed to create configuration dependency first try", ErrorCreatingDependencyErrorCode)
+	}
+
+	if isMissing {
+		tType = TypeName[CT]() //trying creation without token
+		unknownInstance, err = f.CreateConfiguration(ctx, tType, opts)
+		if err != nil {
+			return typedInstance, errors.Wrap(err, "failed to create configuration dependency second try", ErrorCreatingDependencyErrorCode)
+		}
 	}
 
 	typedInstance, ok = safeTypeAssert[CT](unknownInstance)
@@ -175,3 +193,4 @@ func createSingleConfigurationWithToken[CT any](ctx Ctx, opts RegistryOpts) (CT,
 
 	return typedInstance, nil
 }
+

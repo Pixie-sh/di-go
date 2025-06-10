@@ -22,7 +22,7 @@ func RegisterPair[T any, CT any](
 		}
 	}
 
-	return registerPairWithToken[T, CT](fn, fnCT, registryOpts)
+	return registerPairWithToken[T, CT](fn, fnCT, &registryOpts)
 }
 
 // Register adds a single type T to the registry without configuration dependencies.
@@ -40,7 +40,7 @@ func Register[T any](fn TypedCreateInstanceNoConfigHandler[T], options ...func(*
 		}
 	}
 
-	return registerSingleWithToken[T](fn, registryOpts)
+	return registerSingleWithToken[T](fn, &registryOpts)
 }
 
 // RegisterConfiguration registers a configuration type T in the registry.
@@ -58,12 +58,12 @@ func RegisterConfiguration[T any](fn TypedCreateInstanceNoConfigHandler[T], opti
 		}
 	}
 
-	return registerSingleConfigurationWithToken[T](fn, registryOpts)
+	return registerSingleConfigurationWithToken[T](fn, &registryOpts)
 }
 
 // registerPairWithToken is an internal function that handles the registration of a type pair with specific tokens.
 // It registers both the configuration type CT and the dependent type T with their respective creation functions.
-func registerPairWithToken[T any, CT any](fn TypedCreateInstanceHandler[T, CT], fnCT TypedCreateInstanceNoConfigHandler[CT], opts RegistryOpts) error {
+func registerPairWithToken[T any, CT any](fn TypedCreateInstanceHandler[T, CT], fnCT TypedCreateInstanceNoConfigHandler[CT], opts *RegistryOpts) error {
 	var (
 		f     = Instance
 		err   error
@@ -76,17 +76,14 @@ func registerPairWithToken[T any, CT any](fn TypedCreateInstanceHandler[T, CT], 
 
 	ctType := TypeName[CT](token)
 	tType := TypeName[T](token)
-	err = f.RegisterConfiguration(PairTypeName(ctType, tType), func(ctx Ctx, opts RegistryOpts) (any, error) {
-		return fnCT(ctx, opts)
-	}, opts)
+	pairTypeName := PairTypeName(ctType, tType)
+	err = f.RegisterConfiguration(pairTypeName, fromHotMemoryRegisterNoConfig(f, fnCT, pairTypeName), opts)
 	if err != nil {
 		return errors.Wrap(err, "failed to RegisterPair configuration creator", ErrorCreatingDependencyErrorCode)
 	}
 
-	err = f.Register(PairTypeName(tType, ctType), func(ctx Ctx, opts RegistryOpts, config any) (any, error) {
-		return fn(ctx, opts, config.(CT))
-	}, opts)
-
+	pairTypeName = PairTypeName(tType, ctType)
+	err = f.Register(pairTypeName, fromHotMemoryRegisterWithConfig(f, fn, pairTypeName), opts)
 	if err != nil {
 		return errors.Wrap(err, "failed to RegisterPair creator", ErrorCreatingDependencyErrorCode)
 	}
@@ -96,7 +93,7 @@ func registerPairWithToken[T any, CT any](fn TypedCreateInstanceHandler[T, CT], 
 
 // registerSingleWithToken is an internal function that registers a single type T with a specific token.
 // It handles the registration of types that don't require configuration.
-func registerSingleWithToken[T any](fn TypedCreateInstanceNoConfigHandler[T], opts RegistryOpts) error {
+func registerSingleWithToken[T any](fn TypedCreateInstanceNoConfigHandler[T], opts *RegistryOpts) error {
 	var (
 		f     = Instance
 		err   error
@@ -107,8 +104,10 @@ func registerSingleWithToken[T any](fn TypedCreateInstanceNoConfigHandler[T], op
 		f = opts.Registry
 	}
 
-	err = f.Register(TypeName[T](token), func(ctx Ctx, opts RegistryOpts, _ any) (any, error) {
-		return fn(ctx, opts)
+	tType := TypeName[T](token)
+	fromHotFn := fromHotMemoryRegisterNoConfig(f, fn, tType)
+	err = f.Register(tType, func(ctx Context, opts *RegistryOpts, _ any) (any, error) {
+		return fromHotFn(ctx, opts)
 	}, opts)
 	if err != nil {
 		return errors.Wrap(err, "failed to RegisterPair creator", ErrorCreatingDependencyErrorCode)
@@ -119,7 +118,7 @@ func registerSingleWithToken[T any](fn TypedCreateInstanceNoConfigHandler[T], op
 
 // registerSingleConfigurationWithToken is an internal function that registers a configuration type T with a specific token.
 // It handles the registration of configuration types in the dependency injection system.
-func registerSingleConfigurationWithToken[T any](fn TypedCreateInstanceNoConfigHandler[T], opts RegistryOpts) error {
+func registerSingleConfigurationWithToken[T any](fn TypedCreateInstanceNoConfigHandler[T], opts *RegistryOpts) error {
 	var (
 		f     = Instance
 		err   error
@@ -130,12 +129,64 @@ func registerSingleConfigurationWithToken[T any](fn TypedCreateInstanceNoConfigH
 		f = opts.Registry
 	}
 
-	err = f.RegisterConfiguration(TypeName[T](token), func(ctx Ctx, opts RegistryOpts) (any, error) {
-		return fn(ctx, opts)
-	}, opts)
+	tType := TypeName[T](token)
+	err = f.RegisterConfiguration(tType, fromHotMemoryRegisterNoConfig(f, fn, tType), opts)
 	if err != nil {
 		return errors.Wrap(err, "failed to RegisterPair creator", ErrorCreatingDependencyErrorCode)
 	}
 
 	return nil
+}
+
+
+func fromHotMemoryRegisterWithConfig[T any, CT any](f Registry, fn TypedCreateInstanceHandler[T, CT], typeName string) func(ctx Context, opts *RegistryOpts, c any) (any, error) {
+	return func(ctx Context, opts *RegistryOpts, c any) (any, error) {
+		resultInstance, err := f.GetHotInstance(ctx, opts, typeName)
+		_, isMissing := errors.Has(err, DependencyMissingErrorCode)
+		if err != nil && !isMissing {
+			return resultInstance, err
+		}
+
+		if err == nil {
+			return resultInstance, nil
+		}
+
+		resultInstance, err = fn(ctx, opts, c.(CT))
+		if err != nil {
+			return nil, err
+		}
+
+		err = f.SetHotInstance(ctx, opts, typeName, resultInstance)
+		if err != nil {
+			return nil, err
+		}
+
+		return resultInstance, nil
+	}
+}
+
+func fromHotMemoryRegisterNoConfig[T any](f Registry, fn TypedCreateInstanceNoConfigHandler[T], typeName string) func(ctx Context, opts *RegistryOpts) (any, error) {
+	return func(ctx Context, opts *RegistryOpts) (any, error) {
+		resultInstance, err := f.GetHotInstance(ctx, opts, typeName)
+		_, isMissing := errors.Has(err, DependencyMissingErrorCode)
+		if err != nil && !isMissing {
+			return resultInstance, err
+		}
+
+		if err == nil {
+			return resultInstance, nil
+		}
+
+		resultInstance, err = fn(ctx, opts)
+		if err != nil {
+			return nil, err
+		}
+
+		err = f.SetHotInstance(ctx, opts, typeName, resultInstance)
+		if err != nil {
+			return nil, err
+		}
+
+		return resultInstance, nil
+	}
 }

@@ -2,8 +2,53 @@ package di
 
 import (
 	"fmt"
+	"github.com/pixie-sh/errors-go"
 	"reflect"
 )
+
+var injectionTokenMap = map[InjectionToken]struct{}{}
+
+type NoConfig struct{}
+type InjectionToken string
+
+func (t InjectionToken) String() string {
+	return string(t)
+}
+
+const injectionTokenSeparator = "."
+
+// RegisterInjectionToken creates and returns a new InjectionToken from the provided string.
+// This function is used to create typed tokens for dependency injection registration and resolution.
+// The token string must not:
+// - Be empty
+// - Start or end with a dot
+// - Contain consecutive dots
+func RegisterInjectionToken(tkn string) InjectionToken {
+	_, existing := injectionTokenMap[InjectionToken(tkn)]
+	if existing {
+		errors.Must(errors.New("injection token %s already registered", tkn))
+	}
+
+	if tkn == "" {
+		errors.Must(errors.New("injection token cannot be empty"))
+	}
+
+	for i, r := range tkn {
+		if r == '.' {
+			if i == 0 || i == len(tkn)-1 {
+				errors.Must(errors.New("injection token %s cannot start or end with a dot", tkn))
+			}
+
+			if tkn[i-1] == '.' {
+				errors.Must(errors.New("injection token %s cannot contain consecutive dots", tkn))
+			}
+		}
+	}
+
+	injectionTokenMap[InjectionToken(tkn)] = struct{}{}
+	return InjectionToken(tkn)
+}
+
 
 func TypeName[T any](tokens ...InjectionToken) string {
 	var typeName string
@@ -27,36 +72,58 @@ func PairTypeName(first, second string) string {
 	return fmt.Sprintf("%s;%s", first, second)
 }
 
+// RegistryOpts defines the configuration options for dependency injection registry operations.
+// It contains the registry instance to use, an optional injection token for type identification,
+// and a configuration node path for structured configuration handling.
+//
+// InjectionToken + ConfigNode should return the correct go struct extracted form
 type RegistryOpts struct {
-	Registry       Registry
-	InjectionToken InjectionToken
+	Registry       Registry       // The registry instance to use for dependency management
+	InjectionToken InjectionToken // Optional token to identify specific type registrations
+	ConfigNode     string         // Path to configuration node in structured config
 }
 
-func WithOpts(opt RegistryOpts) func(opts *RegistryOpts) {
+// WithOpts returns a function that replaces all registry options with the provided options.
+// This is useful when you want to completely override the default options with a new set.
+func WithOpts(opt *RegistryOpts) func(opts *RegistryOpts) {
 	return func(opts *RegistryOpts) {
-		*opts = opt
+		*opts = *opt
 	}
 }
 
+// WithRegistry returns a function that sets the registry instance in the options.
+// This allows specifying which registry should be used for dependency management.
 func WithRegistry(instance Registry) func(opts *RegistryOpts) {
 	return func(opts *RegistryOpts) {
 		opts.Registry = instance
 	}
 }
 
-func WithInjectionToken(token InjectionToken) func(opts *RegistryOpts) {
+// WithToken returns a function that sets the injection token in the options.
+// This enables type-specific registration and resolution in the dependency injection system.
+func WithToken(token InjectionToken) func(opts *RegistryOpts) {
 	return func(opts *RegistryOpts) {
 		opts.InjectionToken = token
 	}
 }
 
-type NoConfig struct{}
-type InjectionToken string
+// WithConfigNode returns a function that sets the configuration node path in the options.
+// This allows specifying which configuration path should be used for dependency management.
+func WithConfigNode(path string) func(opts *RegistryOpts) {
+	return func(opts *RegistryOpts) {
+		if len(opts.ConfigNode) > 0 {
+			opts.ConfigNode = opts.ConfigNode + "." + path
+			return
+		}
 
-type CreateInstanceHandler func(Ctx, RegistryOpts, any) (any, error)
-type CreateConfigurationHandler func(Ctx, RegistryOpts) (any, error)
-type TypedCreateInstanceHandler[T any, CT any] func(Ctx, RegistryOpts, CT) (T, error)
-type TypedCreateInstanceNoConfigHandler[T any] func(Ctx, RegistryOpts) (T, error)
+		opts.ConfigNode = path
+	}
+}
+
+type CreateInstanceHandler func(Context, *RegistryOpts, any) (any, error)
+type CreateConfigurationHandler func(Context, *RegistryOpts) (any, error)
+type TypedCreateInstanceHandler[T any, CT any] func(Context, *RegistryOpts, CT) (T, error)
+type TypedCreateInstanceNoConfigHandler[T any] func(Context, *RegistryOpts) (T, error)
 
 // Here's the implementation of the fix in a function that can be added to your codebase
 // This would need to replace or augment the existing type assertion in createSingleWithToken

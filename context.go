@@ -7,31 +7,33 @@ import (
 )
 
 type ConfigRawData = map[string]interface{}
-type ConfigData = any
+type Configuration interface {
+	LookupNode(lookupPath string) (any, error)
+}
 
-// Ctx extends the standard context.Context interface with additional
+// Context extends the standard context.NewContext interface with additional
 // functionality for configuration management and access to the underlying context
-type Ctx interface {
+type Context interface {
 	goctx.Context
 
 	RawConfiguration() ConfigRawData
-	Configuration() ConfigData
+	Configuration() Configuration
 	Inner() goctx.Context
 }
 
-// context implements the Ctx interface and wraps the standard context
+// context implements the Context interface and wraps the standard context
 // with additional configuration data
 type context struct {
 	ctx goctx.Context
 
 	rawCfg ConfigRawData
-	cfg    ConfigData
+	cfg    Configuration
 }
 
 func (s *context) RawConfiguration() ConfigRawData {
 	return s.rawCfg
 }
-func (s *context) Configuration() ConfigData {
+func (s *context) Configuration() Configuration {
 	return s.cfg
 }
 
@@ -55,20 +57,20 @@ func (s *context) Inner() goctx.Context {
 	return s.ctx
 }
 
-// Context creates a new Ctx instance with optional context and configuration data.
-// It accepts variable arguments that can be a context.Context, Ctx, ConfigRawData or ConfigData.
+// NewContext creates a new Context instance with optional context and configuration data.
+// It accepts variable arguments that can be a context.NewContext, Context, ConfigRawData or Configuration.
 // If no context is provided, it uses context.Background().
-// New Context will inherit configuration from parent contexts unless explicitly overridden.
-func Context(args ...any) Ctx {
+// New NewContext will inherit configuration from parent contexts unless explicitly overridden.
+func NewContext(args ...any) Context {
 	var ctx goctx.Context
 	var parentDiCtx *context
 	var rawData ConfigRawData
-	var cfg ConfigData
+	var cfg Configuration
 	var err error
 
 	for i := 0; i < len(args); i++ {
 		switch v := args[i].(type) {
-		case Ctx:
+		case Context:
 			var ok bool
 			parentDiCtx, ok = v.(*context)
 			if ok {
@@ -83,7 +85,7 @@ func Context(args ...any) Ctx {
 			rawData = v
 			args = append(args[:i], args[i+1:]...)
 			i--
-		case ConfigData:
+		case Configuration:
 			cfg = v
 			args = append(args[:i], args[i+1:]...)
 			i--
@@ -118,4 +120,8 @@ func Context(args ...any) Ctx {
 	}
 
 	return &context{ctx, rawData, cfg}
+}
+
+func NewContextWithConfig(cfg Configuration, args ...any) Context {
+	return NewContext(append(args, cfg)...)
 }
