@@ -9,28 +9,28 @@ import (
 )
 
 // Test for singleton pattern
-type Database struct {
+type databaseTest struct {
 	ConnectionString string
 	initialized      bool
 }
 
-// Configuration for Database
-type DatabaseConfig struct {
+// Configuration for databaseTest
+type databaseConfigTest struct {
 	ConnectionString string
 }
 
 // Test for complex object with multiple dependencies
-type Service struct {
-	DB               *Database
-	Logger           *Logger
-	MetricsCollector *MetricsCollector
+type serviceTest struct {
+	DB               *databaseTest
+	Logger           *loggerTest
+	MetricsCollector *metricsCollectorTest
 }
 
-type Logger struct {
+type loggerTest struct {
 	Level string
 }
 
-type MetricsCollector struct {
+type metricsCollectorTest struct {
 	Endpoint string
 }
 
@@ -41,22 +41,22 @@ func Test_SingletonPattern(t *testing.T) {
 
 	// Our singleton instance counter
 	instanceCounter := 0
-	var singletonInstance *Database
+	var singletonInstance *databaseTest
 	var mu sync.Mutex
 
 	// Custom test factory for tracking registrations
 	customFactory := &TestFactory{}
 
-	// Register Database as a singleton with configuration
-	require.NoError(t, RegisterPair[*Database, *DatabaseConfig](
+	// Register databaseTest as a singleton with configuration
+	require.NoError(t, RegisterPair[*databaseTest, *databaseConfigTest](
 		// Instance creator function
-		func(ctx Context, opts RegistryOpts, config *DatabaseConfig) (*Database, error) {
+		func(ctx Context, opts *RegistryOpts, config *databaseConfigTest) (*databaseTest, error) {
 			mu.Lock()
 			defer mu.Unlock()
 
 			// Only create one instance no matter how many times we're called
 			if singletonInstance == nil {
-				singletonInstance = &Database{
+				singletonInstance = &databaseTest{
 					ConnectionString: config.ConnectionString,
 					initialized:      true,
 				}
@@ -66,8 +66,8 @@ func Test_SingletonPattern(t *testing.T) {
 			return singletonInstance, nil
 		},
 		// Configuration creator function
-		func(ctx Context, opts RegistryOpts) (*DatabaseConfig, error) {
-			return &DatabaseConfig{
+		func(ctx Context, opts *RegistryOpts) (*databaseConfigTest, error) {
+			return &databaseConfigTest{
 				ConnectionString: "mongodb://localhost:27017",
 			}, nil
 		},
@@ -75,15 +75,15 @@ func Test_SingletonPattern(t *testing.T) {
 	))
 
 	// Create multiple instances - they should all be the same object
-	db1, err := CreatePair[*Database, *DatabaseConfig](NewContext(), WithRegistry(customFactory))
+	db1, err := CreatePair[*databaseTest, *databaseConfigTest](NewContext(), WithRegistry(customFactory))
 	require.NoError(t, err)
 	require.NotNil(t, db1)
 
-	db2, err := CreatePair[*Database, *DatabaseConfig](NewContext(), WithRegistry(customFactory))
+	db2, err := CreatePair[*databaseTest, *databaseConfigTest](NewContext(), WithRegistry(customFactory))
 	require.NoError(t, err)
 	require.NotNil(t, db2)
 
-	db3, err := CreatePair[*Database, *DatabaseConfig](NewContext(), WithRegistry(customFactory))
+	db3, err := CreatePair[*databaseTest, *databaseConfigTest](NewContext(), WithRegistry(customFactory))
 	require.NoError(t, err)
 	require.NotNil(t, db3)
 
@@ -95,8 +95,8 @@ func Test_SingletonPattern(t *testing.T) {
 	assert.Equal(t, 1, instanceCounter)
 
 	// Verify our factory was called
-	require.Contains(t, regCalls, "Register:di.Database;di.DatabaseConfig")
-	require.Contains(t, regCalls, "RegisterConf:di.DatabaseConfig;di.Database")
+	require.Contains(t, regCalls, "Register:di.databaseTest;di.databaseConfigTest")
+	require.Contains(t, regCalls, "RegisterConf:di.databaseConfigTest;di.databaseTest")
 }
 
 // Test for complex object with multiple dependencies
@@ -109,54 +109,54 @@ func Test_ComplexObjectWithDependencies(t *testing.T) {
 	customFactory := &TestFactory{}
 
 	// Register all dependencies
-	require.NoError(t, Register[*Logger](
-		func(ctx Context, opts RegistryOpts) (*Logger, error) {
-			return &Logger{Level: "INFO"}, nil
+	require.NoError(t, Register[*loggerTest](
+		func(ctx Context, opts *RegistryOpts) (*loggerTest, error) {
+			return &loggerTest{Level: "INFO"}, nil
 		},
 		WithRegistry(customFactory),
 	))
 
-	require.NoError(t, Register[*MetricsCollector](
-		func(ctx Context, opts RegistryOpts) (*MetricsCollector, error) {
-			return &MetricsCollector{Endpoint: "http://metrics.example.com"}, nil
+	require.NoError(t, Register[*metricsCollectorTest](
+		func(ctx Context, opts *RegistryOpts) (*metricsCollectorTest, error) {
+			return &metricsCollectorTest{Endpoint: "http://metrics.example.com"}, nil
 		},
 		WithRegistry(customFactory),
 	))
 
-	// Register Database with config
-	require.NoError(t, RegisterPair[*Database, *DatabaseConfig](
-		func(ctx Context, opts RegistryOpts, config *DatabaseConfig) (*Database, error) {
-			return &Database{
+	// Register databaseTest with config
+	require.NoError(t, RegisterPair[*databaseTest, *databaseConfigTest](
+		func(ctx Context, opts *RegistryOpts, config *databaseConfigTest) (*databaseTest, error) {
+			return &databaseTest{
 				ConnectionString: config.ConnectionString,
 				initialized:      true,
 			}, nil
 		},
-		func(ctx Context, opts RegistryOpts) (*DatabaseConfig, error) {
-			return &DatabaseConfig{ConnectionString: "mongodb://localhost:27017"}, nil
+		func(ctx Context, opts *RegistryOpts) (*databaseConfigTest, error) {
+			return &databaseConfigTest{ConnectionString: "mongodb://localhost:27017"}, nil
 		},
 		WithRegistry(customFactory),
 	))
 
-	// Register Service that depends on all other components
-	require.NoError(t, Register[*Service](
-		func(ctx Context, opts RegistryOpts) (*Service, error) {
+	// Register serviceTest that depends on all other components
+	require.NoError(t, Register[*serviceTest](
+		func(ctx Context, opts *RegistryOpts) (*serviceTest, error) {
 			// Create all dependencies through the DI container
-			db, err := CreatePair[*Database, *DatabaseConfig](ctx, WithRegistry(customFactory))
+			db, err := CreatePair[*databaseTest, *databaseConfigTest](ctx, WithRegistry(customFactory))
 			if err != nil {
 				return nil, err
 			}
 
-			logger, err := Create[*Logger](ctx, WithRegistry(customFactory))
+			logger, err := Create[*loggerTest](ctx, WithRegistry(customFactory))
 			if err != nil {
 				return nil, err
 			}
 
-			metrics, err := Create[*MetricsCollector](ctx, WithRegistry(customFactory))
+			metrics, err := Create[*metricsCollectorTest](ctx, WithRegistry(customFactory))
 			if err != nil {
 				return nil, err
 			}
 
-			return &Service{
+			return &serviceTest{
 				DB:               db,
 				Logger:           logger,
 				MetricsCollector: metrics,
@@ -166,7 +166,7 @@ func Test_ComplexObjectWithDependencies(t *testing.T) {
 	))
 
 	// Create the complex service with all its dependencies
-	service, err := Create[*Service](NewContext(), WithRegistry(customFactory))
+	service, err := Create[*serviceTest](NewContext(), WithRegistry(customFactory))
 	require.NoError(t, err)
 	require.NotNil(t, service)
 
@@ -193,36 +193,36 @@ func Test_NamedInstances(t *testing.T) {
 	customFactory := &TestFactory{}
 
 	// Register multiple database instances with different tokens
-	require.NoError(t, RegisterPair[*Database, *DatabaseConfig](
-		func(ctx Context, opts RegistryOpts, config *DatabaseConfig) (*Database, error) {
-			return &Database{
+	require.NoError(t, RegisterPair[*databaseTest, *databaseConfigTest](
+		func(ctx Context, opts *RegistryOpts, config *databaseConfigTest) (*databaseTest, error) {
+			return &databaseTest{
 				ConnectionString: config.ConnectionString,
 				initialized:      true,
 			}, nil
 		},
-		func(ctx Context, opts RegistryOpts) (*DatabaseConfig, error) {
-			return &DatabaseConfig{ConnectionString: "mongodb://primary:27017"}, nil
+		func(ctx Context, opts *RegistryOpts) (*databaseConfigTest, error) {
+			return &databaseConfigTest{ConnectionString: "mongodb://primary:27017"}, nil
 		},
 		WithRegistry(customFactory),
 		WithToken("primary"),
 	))
 
-	require.NoError(t, RegisterPair[*Database, *DatabaseConfig](
-		func(ctx Context, opts RegistryOpts, config *DatabaseConfig) (*Database, error) {
-			return &Database{
+	require.NoError(t, RegisterPair[*databaseTest, *databaseConfigTest](
+		func(ctx Context, opts *RegistryOpts, config *databaseConfigTest) (*databaseTest, error) {
+			return &databaseTest{
 				ConnectionString: config.ConnectionString,
 				initialized:      true,
 			}, nil
 		},
-		func(ctx Context, opts RegistryOpts) (*DatabaseConfig, error) {
-			return &DatabaseConfig{ConnectionString: "mongodb://replica:27017"}, nil
+		func(ctx Context, opts *RegistryOpts) (*databaseConfigTest, error) {
+			return &databaseConfigTest{ConnectionString: "mongodb://replica:27017"}, nil
 		},
 		WithRegistry(customFactory),
 		WithToken("replica"),
 	))
 
 	// Create the named instances
-	primaryDB, err := CreatePair[*Database, *DatabaseConfig](
+	primaryDB, err := CreatePair[*databaseTest, *databaseConfigTest](
 		NewContext(),
 		WithRegistry(customFactory),
 		WithToken("primary"),
@@ -230,7 +230,7 @@ func Test_NamedInstances(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, primaryDB)
 
-	replicaDB, err := CreatePair[*Database, *DatabaseConfig](
+	replicaDB, err := CreatePair[*databaseTest, *databaseConfigTest](
 		NewContext(),
 		WithRegistry(customFactory),
 		WithToken("replica"),
@@ -244,6 +244,6 @@ func Test_NamedInstances(t *testing.T) {
 	assert.Equal(t, "mongodb://replica:27017", replicaDB.ConnectionString)
 
 	// Verify our factory was called for all registrations with correct tokens
-	require.Contains(t, regCalls, "Register:primary:di.Database;primary:di.DatabaseConfig")
-	require.Contains(t, regCalls, "Register:replica:di.Database;replica:di.DatabaseConfig")
+	require.Contains(t, regCalls, "Register:primary:di.databaseTest;primary:di.databaseConfigTest")
+	require.Contains(t, regCalls, "Register:replica:di.databaseTest;replica:di.databaseConfigTest")
 }

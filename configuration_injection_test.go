@@ -73,7 +73,7 @@ func TestConfigurationInjection(t *testing.T) {
 
 	// 4. Register configuration provider that loads from JSON file
 	err := RegisterConfiguration[AppConfig](
-		func(ctx Context, opts RegistryOpts) (AppConfig, error) {
+		func(ctx Context, opts *RegistryOpts) (AppConfig, error) {
 			// This function demonstrates how to load config from a file
 			// In a real application, the path might come from ctx or environment
 			data, err := os.ReadFile(configPath)
@@ -94,7 +94,7 @@ func TestConfigurationInjection(t *testing.T) {
 
 	// 5. Register the database service that requires this configuration
 	err = Register[*DatabaseService](
-		func(ctx Context, opts RegistryOpts) (*DatabaseService, error) {
+		func(ctx Context, opts *RegistryOpts) (*DatabaseService, error) {
 			// Get the configuration
 			config, err := CreateConfiguration[AppConfig](ctx, WithRegistry(registry))
 			if err != nil {
@@ -157,14 +157,14 @@ func TestConfigurationInjectionWithPair(t *testing.T) {
 
 	// 4. Register both the config provider and service with RegisterPair
 	err := RegisterPair[*DatabaseService, AppConfig](
-		// Service creation function that takes config
-		func(ctx Context, opts RegistryOpts, config AppConfig) (*DatabaseService, error) {
+		// serviceTest creation function that takes config
+		func(ctx Context, opts *RegistryOpts, config AppConfig) (*DatabaseService, error) {
 			return &DatabaseService{
 				Config: config,
 			}, nil
 		},
 		// Configuration creation function
-		func(ctx Context, opts RegistryOpts) (AppConfig, error) {
+		func(ctx Context, opts *RegistryOpts) (AppConfig, error) {
 			data, err := os.ReadFile(configPath)
 			if err != nil {
 				return AppConfig{}, errors.Wrap(err, "failed to read config file", "config_read_error")

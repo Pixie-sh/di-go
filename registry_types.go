@@ -85,9 +85,9 @@ type RegistryOpts struct {
 
 // WithOpts returns a function that replaces all registry options with the provided options.
 // This is useful when you want to completely override the default options with a new set.
-func WithOpts(opt RegistryOpts) func(opts *RegistryOpts) {
+func WithOpts(opt *RegistryOpts) func(opts *RegistryOpts) {
 	return func(opts *RegistryOpts) {
-		*opts = opt
+		*opts = *opt
 	}
 }
 
@@ -120,10 +120,10 @@ func WithConfigNode(path string) func(opts *RegistryOpts) {
 	}
 }
 
-type CreateInstanceHandler func(Context, RegistryOpts, any) (any, error)
-type CreateConfigurationHandler func(Context, RegistryOpts) (any, error)
-type TypedCreateInstanceHandler[T any, CT any] func(Context, RegistryOpts, CT) (T, error)
-type TypedCreateInstanceNoConfigHandler[T any] func(Context, RegistryOpts) (T, error)
+type CreateInstanceHandler func(Context, *RegistryOpts, any) (any, error)
+type CreateConfigurationHandler func(Context, *RegistryOpts) (any, error)
+type TypedCreateInstanceHandler[T any, CT any] func(Context, *RegistryOpts, CT) (T, error)
+type TypedCreateInstanceNoConfigHandler[T any] func(Context, *RegistryOpts) (T, error)
 
 // Here's the implementation of the fix in a function that can be added to your codebase
 // This would need to replace or augment the existing type assertion in createSingleWithToken

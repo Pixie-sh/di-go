@@ -21,7 +21,7 @@ func Create[T any](ctx Context, options ...func(opts *RegistryOpts)) (T, error) 
 		}
 	}
 
-	return createSingleWithToken[T](ctx, registryOpts)
+	return createSingleWithToken[T](ctx, &registryOpts)
 }
 
 // CreateConfiguration creates a new configuration instance of type T.
@@ -39,7 +39,7 @@ func CreateConfiguration[T any](ctx Context, options ...func(opts *RegistryOpts)
 		}
 	}
 
-	return createSingleConfigurationWithToken[T](ctx, registryOpts)
+	return createSingleConfigurationWithToken[T](ctx, &registryOpts)
 }
 
 // CreatePair creates a pair of instances where T is the main type and CT is the configuration type.
@@ -57,14 +57,14 @@ func CreatePair[T any, CT any](ctx Context, options ...func(opts *RegistryOpts))
 		}
 	}
 
-	return createPairWithToken[T, CT](ctx, registryOpts)
+	return createPairWithToken[T, CT](ctx, &registryOpts)
 }
 
 // createPairWithToken is an internal function that creates a pair of instances using a specific token.
 // It handles both the creation of the configuration (CT) and the main type (T).
 // The CT type can be either a concrete type or NoConfig.
 // Returns the created instance of type T and any error that occurred.
-func createPairWithToken[T any, CT any | NoConfig](ctx Context, opts RegistryOpts) (T, error) {
+func createPairWithToken[T any, CT any | NoConfig](ctx Context, opts *RegistryOpts) (T, error) {
 	var (
 		f               = Instance
 		typedInstance   T
@@ -115,7 +115,7 @@ func createPairWithToken[T any, CT any | NoConfig](ctx Context, opts RegistryOpt
 // createSingleWithToken is an internal function that creates a single instance of type T using a token.
 // It uses the provided context and registry options to create the instance.
 // Returns the created instance and any error that occurred during creation.
-func createSingleWithToken[T any](ctx Context, opts RegistryOpts) (T, error) {
+func createSingleWithToken[T any](ctx Context, opts *RegistryOpts) (T, error) {
 	var (
 		f               = Instance
 		typedInstance   T
@@ -157,7 +157,7 @@ func createSingleWithToken[T any](ctx Context, opts RegistryOpts) (T, error) {
 // createSingleConfigurationWithToken is an internal function that creates a configuration instance.
 // It creates a single configuration of type CT using the provided context and registry options.
 // Returns the created configuration instance and any error that occurred.
-func createSingleConfigurationWithToken[CT any](ctx Context, opts RegistryOpts) (CT, error) {
+func createSingleConfigurationWithToken[CT any](ctx Context, opts *RegistryOpts) (CT, error) {
 	var (
 		f               = Instance
 		typedInstance   CT

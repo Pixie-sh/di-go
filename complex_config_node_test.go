@@ -2,7 +2,6 @@ package di
 
 import (
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"testing"
 )
 
@@ -65,7 +64,7 @@ const jsonCfg = `
 	"singleton": ${di.$shared},
 	"payment_business_layer": {
 		"session_cache": {
-			"cache": ${di.$shared.cache}
+			"cache": "${di.$shared.cache}"
 		},
 		"cache": {
 			"cache": {
@@ -86,15 +85,12 @@ const jsonCfg = `
 func TestLoadConfigWithinInjection(t *testing.T) {
 	var config complexConfig
 	err := UnmarshalJSONWithDIResolution([]byte(jsonCfg), &config)
-	require.NoError(t, err, "Failed to unmarshal complex config")
+	assert.NoError(t, err, "Failed to unmarshal complex config")
 
-	_ = RegisterConfiguration[redisConfig](func(context Context, opts RegistryOpts) (redisConfig, error) {
-		return ConfigurationLookup[redisConfig](context, opts)
-	})
-	_ = RegisterConfiguration[chargebeeConfig](func(context Context, opts RegistryOpts) (chargebeeConfig, error) {
-		return ConfigurationLookup[chargebeeConfig](context, opts)
-	})
-	_ = Register[complexSessionCache](func(c Context, opts RegistryOpts) (complexSessionCache, error) {
+	_ = RegisterConfiguration[redisConfig](ConfigurationLookup[redisConfig])
+	_ = RegisterConfiguration[chargebeeConfig](ConfigurationLookup[chargebeeConfig])
+
+	_ = Register[complexSessionCache](func(c Context, opts *RegistryOpts) (complexSessionCache, error) {
 		cache, err := CreateConfiguration[redisConfig](c, WithOpts(opts), WithConfigNode("cache"))
 		if err != nil {
 			return complexSessionCache{}, err
@@ -103,20 +99,20 @@ func TestLoadConfigWithinInjection(t *testing.T) {
 		return complexSessionCache{cache}, nil
 	})
 
-	_ = Register[complexPaymentBizLayer](func(c Context, opts RegistryOpts) (complexPaymentBizLayer, error) {
+	_ = Register[*complexPaymentBizLayer](func(c Context, opts *RegistryOpts) (*complexPaymentBizLayer, error) {
 		chargebee, err := CreateConfiguration[chargebeeConfig](c, WithOpts(opts), WithConfigNode("chargebee"))
 		if err != nil {
-			return complexPaymentBizLayer{}, err
+			return &complexPaymentBizLayer{}, err
 		}
 
 		singletonCache, err := Create[complexSessionCache](c, WithOpts(opts), WithConfigNode("session_cache"))
 		if err != nil {
-			return complexPaymentBizLayer{}, err
+			return &complexPaymentBizLayer{}, err
 		}
 
 		cache, err := Create[complexSessionCache](c, WithOpts(opts), WithConfigNode("cache"))
 		if err != nil {
-			return complexPaymentBizLayer{}, err
+			return &complexPaymentBizLayer{}, err
 		}
 
 		cpbl := complexPaymentBizLayer{
@@ -125,22 +121,29 @@ func TestLoadConfigWithinInjection(t *testing.T) {
 			sessionCache: singletonCache,
 		}
 
-		return cpbl, nil
+		return &cpbl, nil
 	}, WithToken("payment_business_layer"))
 
 	diCtx := NewContext(config)
-	paymentBizLayer, err := Create[complexPaymentBizLayer](diCtx, WithToken("payment_business_layer"))
+	paymentBizLayer, err := Create[*complexPaymentBizLayer](diCtx, WithToken("payment_business_layer"))
 	if err != nil {
 		t.Fatal(err)
 	}
 
+	paymentBizLayer1, err1 := Create[*complexPaymentBizLayer](diCtx, WithToken("payment_business_layer"))
+	if err1 != nil {
+		t.Fatal(err1)
+	}
+
+	assert.Equal(t, paymentBizLayer, paymentBizLayer1)
+	assert.Same(t, paymentBizLayer, paymentBizLayer1)
 	t.Log(paymentBizLayer)
 }
 
 func TestLoadComplexConfig(t *testing.T) {
 	var config complexConfig
 	err := UnmarshalJSONWithDIResolution([]byte(jsonCfg), &config)
-	require.NoError(t, err, "Failed to unmarshal complex config")
+	assert.NoError(t, err, "Failed to unmarshal complex config")
 
 	// Validate singleton Redis config
 	assert.Equal(t, "qux", config.Singleton.Cache.User)
@@ -161,7 +164,7 @@ func TestLoadComplexConfig(t *testing.T) {
 func TestInjectComplexConfig(t *testing.T) {
 	var config complexConfig
 	err := UnmarshalJSONWithDIResolution([]byte(jsonCfg), &config)
-	require.NoError(t, err, "Failed to unmarshal complex config")
+	assert.NoError(t, err, "Failed to unmarshal complex config")
 
 	v, err := config.LookupNode("singleton.cache.user")
 	assert.NoError(t, err)
@@ -200,7 +203,7 @@ func TestDIResolution(t *testing.T) {
 
 	var config complexConfig
 	err := UnmarshalJSONWithDIResolution([]byte(jsonCfg), &config)
-	require.NoError(t, err, "Failed to unmarshal complex config with DI resolution")
+	assert.NoError(t, err, "Failed to unmarshal complex config with DI resolution")
 
 	// Test the resolved values
 	assert.Equal(t, "qux", config.Singleton.Cache.User)

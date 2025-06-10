@@ -22,7 +22,7 @@ func Test_PointerVsNonPointerCasting(t *testing.T) {
 		Instance = NewRegistry()
 
 		// Register a pointer type (*ValueType) but the creator returns a non-pointer (ValueType)
-		err := Register[*ValueType](func(ctx Context, opts RegistryOpts) (*ValueType, error) {
+		err := Register[*ValueType](func(ctx Context, opts *RegistryOpts) (*ValueType, error) {
 			// Return a value type instead of a pointer - this should normally cause a casting issue
 			// but our fix will handle it
 			val := ValueType{Value: "test value"}
@@ -48,10 +48,10 @@ func Test_PointerVsNonPointerCasting(t *testing.T) {
 		Instance = NewRegistry()
 
 		// Register using the original implementation that doesn't check types
-		Instance.Register(TypeName[*ValueType](), func(ctx Context, opts RegistryOpts, _ any) (any, error) {
+		Instance.Register(TypeName[*ValueType](), func(ctx Context, opts *RegistryOpts, _ any) (any, error) {
 			// Return something completely different
 			return "not a ValueType", nil
-		}, RegistryOpts{})
+		}, &RegistryOpts{})
 
 		// Try to create - this should panic with type mismatch
 		defer func() {
@@ -80,7 +80,7 @@ func Test_PointerVsNonPointerCasting(t *testing.T) {
 		customRegistry := &TypeFixingRegistry{registry: NewRegistry()}
 
 		// Register a non-pointer type (ValueType) but the creator returns a pointer (*ValueType)
-		err := Register[ValueType](func(ctx Context, opts RegistryOpts) (ValueType, error) {
+		err := Register[ValueType](func(ctx Context, opts *RegistryOpts) (ValueType, error) {
 			// This should be a value, but we'll return a pointer to simulate the issue
 			val := ValueType{Value: "test value"}
 			// Return the value directly, not a pointer
@@ -105,15 +105,23 @@ type TypeFixingRegistry struct {
 	registry Registry
 }
 
-func (f *TypeFixingRegistry) Register(typeNameOf string, createFn func(ctx Context, opts RegistryOpts, c any) (any, error), opts RegistryOpts) error {
+func (f *TypeFixingRegistry) GetHotInstance(ctx Context, opts *RegistryOpts, name string) (any, error) {
+	return f.registry.GetHotInstance(ctx, opts, name)
+}
+
+func (f *TypeFixingRegistry) SetHotInstance(ctx Context, opts *RegistryOpts, name string, instance any) error {
+	return f.registry.SetHotInstance(ctx, opts, name, instance)
+}
+
+func (f *TypeFixingRegistry) Register(typeNameOf string, createFn func(ctx Context, opts *RegistryOpts, c any) (any, error), opts *RegistryOpts) error {
 	return f.registry.Register(typeNameOf, createFn, opts)
 }
 
-func (f *TypeFixingRegistry) RegisterConfiguration(typeNameOf string, createCfgFn func(ctx Context, opts RegistryOpts) (any, error), opts RegistryOpts) error {
+func (f *TypeFixingRegistry) RegisterConfiguration(typeNameOf string, createCfgFn func(ctx Context, opts *RegistryOpts) (any, error), opts *RegistryOpts) error {
 	return f.registry.RegisterConfiguration(typeNameOf, createCfgFn, opts)
 }
 
-func (f *TypeFixingRegistry) Create(ctx Context, typeNameOf string, c any, opts RegistryOpts) (any, error) {
+func (f *TypeFixingRegistry) Create(ctx Context, typeNameOf string, c any, opts *RegistryOpts) (any, error) {
 	instance, err := f.registry.Create(ctx, typeNameOf, c, opts)
 	if err != nil {
 		return nil, err
@@ -122,6 +130,6 @@ func (f *TypeFixingRegistry) Create(ctx Context, typeNameOf string, c any, opts 
 	return instance, nil
 }
 
-func (f *TypeFixingRegistry) CreateConfiguration(ctx Context, typeNameOf string, opts RegistryOpts) (any, error) {
+func (f *TypeFixingRegistry) CreateConfiguration(ctx Context, typeNameOf string, opts *RegistryOpts) (any, error) {
 	return f.registry.CreateConfiguration(ctx, typeNameOf, opts)
 }

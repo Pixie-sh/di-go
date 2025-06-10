@@ -9,7 +9,7 @@ import (
 	"strings"
 )
 
-func ConfigurationLookup[T any](ctx Context, opts RegistryOpts) (T, error) {
+func ConfigurationLookup[T any](ctx Context, opts *RegistryOpts) (T, error) {
 	var result T
 
 	if ctx == nil {
@@ -20,10 +20,9 @@ func ConfigurationLookup[T any](ctx Context, opts RegistryOpts) (T, error) {
 		return result, errors.New("di.Context.Configuration() cannot be nil", ConfigurationLookupErrorCode)
 	}
 
-
-	lookupPath, err := configurationLookupPath(ctx, opts)
+	lookupPath, err := assembleConfigurationLookupPath(ctx, opts)
 	if err != nil {
-		return result, errors.Wrap(err, "configurationLookupPath cannot be empty", ConfigurationLookupErrorCode)
+		return result, errors.Wrap(err, "assembleConfigurationLookupPath error", ConfigurationLookupErrorCode)
 	}
 
 	abstractNode, err := ctx.Configuration().LookupNode(lookupPath)
@@ -88,9 +87,9 @@ func ConfigurationNodeLookup(c any, path string) (any, error) {
 	return current.Interface(), nil
 }
 
-func configurationLookupPath(_ Context, opts RegistryOpts) (string, error) {
+func assembleConfigurationLookupPath(_ Context, opts *RegistryOpts) (string, error) {
 	if len(opts.InjectionToken) == 0 && len(opts.ConfigNode) == 0{
-		return "", errors.New("di.RegistryOpts.InjectionToken and di.RegistryOpts.ConfigNode cannot be both empty", ConfigurationLookupErrorCode)
+		return "", errors.New("di.*RegistryOpts.InjectionToken and di.*RegistryOpts.ConfigNode cannot be both empty", ConfigurationLookupErrorCode)
 	}
 
 	lp := opts.ConfigNode

@@ -13,16 +13,16 @@ type someTypeConfig struct {
 }
 
 func testRegistry(f Registry) error {
-	err := RegisterPair[someType, someTypeConfig](func(context Context, opts RegistryOpts, config someTypeConfig) (someType, error) {
+	err := RegisterPair[someType, someTypeConfig](func(context Context, opts *RegistryOpts, config someTypeConfig) (someType, error) {
 		return someType{cfg: config}, nil
-	}, func(c Context, opts RegistryOpts) (someTypeConfig, error) {
+	}, func(c Context, opts *RegistryOpts) (someTypeConfig, error) {
 		return someTypeConfig{"B"}, nil
 	})
 	if err != nil {
 		return err
 	}
 
-	err = Register[someType](func(context Context, opts RegistryOpts) (someType, error) {
+	err = Register[someType](func(context Context, opts *RegistryOpts) (someType, error) {
 		cfg, err := CreateConfiguration[someTypeConfig](context, WithOpts(opts))
 		if err != nil {
 			return someType{}, err
@@ -31,7 +31,7 @@ func testRegistry(f Registry) error {
 		return someType{cfg}, nil
 	})
 
-	err = RegisterConfiguration[someTypeConfig](func(context Context, opts RegistryOpts) (someTypeConfig, error) {
+	err = RegisterConfiguration[someTypeConfig](func(context Context, opts *RegistryOpts) (someTypeConfig, error) {
 		return someTypeConfig{"A"}, nil
 	})
 
