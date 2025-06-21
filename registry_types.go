@@ -49,7 +49,6 @@ func RegisterInjectionToken(tkn string) InjectionToken {
 	return InjectionToken(tkn)
 }
 
-
 func TypeName[T any](tokens ...InjectionToken) string {
 	var typeName string
 	var t *T
@@ -76,11 +75,12 @@ func PairTypeName(first, second string) string {
 // It contains the registry instance to use, an optional injection token for type identification,
 // and a configuration node path for structured configuration handling.
 //
-// InjectionToken + ConfigNode should return the correct go struct extracted form
+// InjectionToken + ConfigNodePath should return the correct go struct extracted form
 type RegistryOpts struct {
 	Registry       Registry       // The registry instance to use for dependency management
 	InjectionToken InjectionToken // Optional token to identify specific type registrations
-	ConfigNode     string         // Path to configuration node in structured config
+	ConfigNodePath string         // Path to configuration node in structured config
+	ConfigNode     any            // Configuration struct that's going to be returned if set whenever CreateConfiguration is called
 }
 
 // WithOpts returns a function that replaces all registry options with the provided options.
@@ -107,16 +107,29 @@ func WithToken(token InjectionToken) func(opts *RegistryOpts) {
 	}
 }
 
-// WithConfigNode returns a function that sets the configuration node path in the options.
+// WithConfigNodePath returns a function that sets the configuration node path in the options.
 // This allows specifying which configuration path should be used for dependency management.
-func WithConfigNode(path string) func(opts *RegistryOpts) {
+func WithConfigNodePath(path string, isAbsolutePath ...bool) func(opts *RegistryOpts) {
 	return func(opts *RegistryOpts) {
-		if len(opts.ConfigNode) > 0 {
-			opts.ConfigNode = opts.ConfigNode + "." + path
+		if len(isAbsolutePath) > 0 && isAbsolutePath[0] {
+			opts.ConfigNodePath = path
 			return
 		}
 
-		opts.ConfigNode = path
+		if len(opts.ConfigNodePath) > 0 {
+			opts.ConfigNodePath = opts.ConfigNodePath + "." + path
+			return
+		}
+
+		opts.ConfigNodePath = path
+	}
+}
+
+// WithConfigNode returns a function that sets the configuration node path in the options.
+// This allows specifying which configuration path should be used for dependency management.
+func WithConfigNode(configNode any) func(opts *RegistryOpts) {
+	return func(opts *RegistryOpts) {
+		opts.ConfigNode = configNode
 	}
 }
 

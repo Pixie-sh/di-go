@@ -91,7 +91,7 @@ func TestLoadConfigWithinInjection(t *testing.T) {
 	_ = RegisterConfiguration[chargebeeConfig](ConfigurationLookup[chargebeeConfig])
 
 	_ = Register[complexSessionCache](func(c Context, opts *RegistryOpts) (complexSessionCache, error) {
-		cache, err := CreateConfiguration[redisConfig](c, WithOpts(opts), WithConfigNode("cache"))
+		cache, err := CreateConfiguration[redisConfig](c, WithOpts(opts), WithConfigNodePath("cache"))
 		if err != nil {
 			return complexSessionCache{}, err
 		}
@@ -100,17 +100,17 @@ func TestLoadConfigWithinInjection(t *testing.T) {
 	})
 
 	_ = Register[*complexPaymentBizLayer](func(c Context, opts *RegistryOpts) (*complexPaymentBizLayer, error) {
-		chargebee, err := CreateConfiguration[chargebeeConfig](c, WithOpts(opts), WithConfigNode("chargebee"))
+		chargebee, err := CreateConfiguration[chargebeeConfig](c, WithOpts(opts), WithConfigNodePath("chargebee"))
 		if err != nil {
 			return &complexPaymentBizLayer{}, err
 		}
 
-		singletonCache, err := Create[complexSessionCache](c, WithOpts(opts), WithConfigNode("session_cache"))
+		singletonCache, err := Create[complexSessionCache](c, WithOpts(opts), WithConfigNodePath("session_cache"))
 		if err != nil {
 			return &complexPaymentBizLayer{}, err
 		}
 
-		cache, err := Create[complexSessionCache](c, WithOpts(opts), WithConfigNode("cache"))
+		cache, err := Create[complexSessionCache](c, WithOpts(opts), WithConfigNodePath("cache"))
 		if err != nil {
 			return &complexPaymentBizLayer{}, err
 		}

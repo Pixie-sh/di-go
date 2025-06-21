@@ -88,13 +88,13 @@ func ConfigurationNodeLookup(c any, path string) (any, error) {
 }
 
 func assembleConfigurationLookupPath(_ Context, opts *RegistryOpts) (string, error) {
-	if len(opts.InjectionToken) == 0 && len(opts.ConfigNode) == 0{
-		return "", errors.New("di.*RegistryOpts.InjectionToken and di.*RegistryOpts.ConfigNode cannot be both empty", ConfigurationLookupErrorCode)
+	if len(opts.InjectionToken) == 0 && len(opts.ConfigNodePath) == 0{
+		return "", errors.New("di.*RegistryOpts.InjectionToken and di.*RegistryOpts.ConfigNodePath cannot be both empty", ConfigurationLookupErrorCode)
 	}
 
-	lp := opts.ConfigNode
+	lp := opts.ConfigNodePath
 	if len(opts.InjectionToken) > 0 {
-		lp = opts.InjectionToken.String() + "." + opts.ConfigNode
+		lp = opts.InjectionToken.String() + "." + opts.ConfigNodePath
 	}
 
 	if len(lp) == 0 {

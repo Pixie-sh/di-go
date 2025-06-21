@@ -171,6 +171,18 @@ func createSingleConfigurationWithToken[CT any](ctx Context, opts *RegistryOpts)
 		f = opts.Registry
 	}
 
+	if opts.ConfigNode != nil {
+		log := Logger.With("opts.config_node", opts)
+		log.Debug("checking opts.ConfigNode for return type")
+		typedInstance, ok = safeTypeAssert[CT](opts.ConfigNode)
+		if ok {
+			log.Debug("returning opts.ConfigNode as CT")
+			return typedInstance, nil
+		}
+
+		log.Debug("opts.ConfigNode is not of type CT. proceeding to create configuration")
+	}
+
 	tType := TypeName[CT](token)
 	unknownInstance, err = f.CreateConfiguration(ctx, tType, opts)
 	_, isMissing := errors.Has(err, DependencyMissingErrorCode)
