@@ -30,7 +30,7 @@ func ConfigurationLookup[T any](ctx Context, opts *RegistryOpts) (T, error) {
 		return result, errors.Wrap(err, "di.Context.Configuration().LookupNode() failed", ConfigurationLookupErrorCode)
 	}
 
-	typed, good := safeTypeAssert[T](abstractNode)
+	typed, good := SafeTypeAssert[T](abstractNode)
 	if !good {
 		return result, errors.New("di.Context.Configuration().LookupNode() returned an invalid type", ConfigurationLookupErrorCode)
 	}

@@ -19,6 +19,10 @@ type databaseConfigTest struct {
 	ConnectionString string
 }
 
+func (d databaseConfigTest) LookupNode(lookupPath string) (any, error) {
+	panic("implement me")
+}
+
 // Test for complex object with multiple dependencies
 type serviceTest struct {
 	DB               *databaseTest

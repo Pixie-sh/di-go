@@ -146,7 +146,7 @@ func createSingleWithToken[T any](ctx Context, opts *RegistryOpts) (T, error) {
 	}
 
 	// Try direct type assertion first
-	typedInstance, ok = safeTypeAssert[T](unknownInstance)
+	typedInstance, ok = SafeTypeAssert[T](unknownInstance)
 	if !ok {
 		panic(errors.New("failed to cast dependency to expected type", DependencyTypeMismatchErrorCode))
 	}
@@ -174,7 +174,7 @@ func createSingleConfigurationWithToken[CT any](ctx Context, opts *RegistryOpts)
 	if opts.ConfigNode != nil {
 		log := Logger.With("opts.config_node", opts)
 		log.Debug("checking opts.ConfigNode for return type")
-		typedInstance, ok = safeTypeAssert[CT](opts.ConfigNode)
+		typedInstance, ok = SafeTypeAssert[CT](opts.ConfigNode)
 		if ok {
 			log.Debug("returning opts.ConfigNode as CT")
 			return typedInstance, nil
@@ -198,7 +198,7 @@ func createSingleConfigurationWithToken[CT any](ctx Context, opts *RegistryOpts)
 		}
 	}
 
-	typedInstance, ok = safeTypeAssert[CT](unknownInstance)
+	typedInstance, ok = SafeTypeAssert[CT](unknownInstance)
 	if !ok {
 		panic(errors.New("failed to cast dependency to expected type", DependencyTypeMismatchErrorCode))
 	}

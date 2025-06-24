@@ -12,11 +12,19 @@ type redisConfig struct {
 	Host string `json:"host"`
 }
 
+func (r redisConfig) LookupNode(lookupPath string) (any, error) {
+	panic("implement me")
+}
+
 // chargebeeConfig represents Chargebee service configuration
 type chargebeeConfig struct {
 	User       string `json:"user"`
 	Password   string `json:"password"`
 	PrivateKey string `json:"private_key"`
+}
+
+func (c chargebeeConfig) LookupNode(lookupPath string) (any, error) {
+	panic("implement me")
 }
 
 // paymentBusinessConfig represents payment business layer configuration

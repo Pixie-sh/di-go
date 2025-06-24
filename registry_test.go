@@ -12,6 +12,10 @@ type someTypeConfig struct {
 	A string
 }
 
+func (s someTypeConfig) LookupNode(lookupPath string) (any, error) {
+	panic("implement me")
+}
+
 func testRegistry(f Registry) error {
 	err := RegisterPair[someType, someTypeConfig](func(context Context, opts *RegistryOpts, config someTypeConfig) (someType, error) {
 		return someType{cfg: config}, nil

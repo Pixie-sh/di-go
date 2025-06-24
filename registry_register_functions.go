@@ -7,7 +7,7 @@ import (
 // RegisterPair registers a pair of types T and CT where T depends on CT for configuration.
 // It takes a creation function that requires configuration and a configuration creation function.
 // Options can be provided to customize the registration behavior.
-func RegisterPair[T any, CT any](
+func RegisterPair[T any, CT Configuration](
 	fn TypedCreateInstanceHandler[T, CT],
 	fnCT TypedCreateInstanceNoConfigHandler[CT],
 	options ...func(opts *RegistryOpts)) error {
@@ -46,7 +46,7 @@ func Register[T any](fn TypedCreateInstanceNoConfigHandler[T], options ...func(*
 // RegisterConfiguration registers a configuration type T in the registry.
 // It takes a creation function that generates configuration instances.
 // Options can be provided to customize the registration behavior.
-func RegisterConfiguration[T any](fn TypedCreateInstanceNoConfigHandler[T], options ...func(*RegistryOpts)) error {
+func RegisterConfiguration[T Configuration](fn TypedCreateInstanceNoConfigHandler[T], options ...func(*RegistryOpts)) error {
 	registryOpts := RegistryOpts{
 		Registry:       Instance,
 		InjectionToken: "",

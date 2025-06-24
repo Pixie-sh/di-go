@@ -138,9 +138,21 @@ type CreateConfigurationHandler func(Context, *RegistryOpts) (any, error)
 type TypedCreateInstanceHandler[T any, CT any] func(Context, *RegistryOpts, CT) (T, error)
 type TypedCreateInstanceNoConfigHandler[T any] func(Context, *RegistryOpts) (T, error)
 
-// Here's the implementation of the fix in a function that can be added to your codebase
-// This would need to replace or augment the existing type assertion in createSingleWithToken
-func safeTypeAssert[T any](unknownInstance any) (T, bool) {
+// SafeTypeAssert attempts to perform a type assertion from an unknown type to the target type T.
+// It handles both direct type assertions and pointer/non-pointer type conversions.
+//
+// Parameters:
+//   - unknownInstance: any - The value to be type asserted
+//
+// Returns:
+//   - T: The asserted value of type T if successful, zero value of T otherwise
+//   - bool: true if type assertion was successful, false otherwise
+//
+// The function performs the following checks in order:
+//  1. Direct type assertion from unknownInstance to T
+//  2. If source is a pointer but target isn't, attempts to dereference and convert
+//  3. If target is a pointer but source isn't, attempts to create pointer and convert
+func SafeTypeAssert[T any](unknownInstance any) (T, bool) {
 	var typedInstance T
 
 	// Try direct type assertion first

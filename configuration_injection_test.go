@@ -21,6 +21,10 @@ type AppConfig struct {
 	ConnectionTimeout int    `json:"connection_timeout"`
 }
 
+func (a AppConfig) LookupNode(lookupPath string) (any, error) {
+	panic("implement me")
+}
+
 // DatabaseService demonstrates a service that requires configuration
 type DatabaseService struct {
 	Config      AppConfig
