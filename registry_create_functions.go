@@ -21,7 +21,10 @@ func Create[T any](ctx Context, options ...func(opts *RegistryOpts)) (T, error) 
 		}
 	}
 
-	return createSingleWithToken[T](ctx, &registryOpts)
+
+	injectionCtx := ctx.Clone()
+	injectionCtx.AppendBreadcrumb(registryOpts.InjectionToken)
+	return createSingleWithToken[T](injectionCtx, &registryOpts)
 }
 
 // CreateConfiguration creates a new configuration instance of type T.
@@ -39,7 +42,8 @@ func CreateConfiguration[T any](ctx Context, options ...func(opts *RegistryOpts)
 		}
 	}
 
-	return createSingleConfigurationWithToken[T](ctx, &registryOpts)
+	injectionCtx := ctx.Clone()
+	return createSingleConfigurationWithToken[T](injectionCtx, &registryOpts)
 }
 
 // CreatePair creates a pair of instances where T is the main type and CT is the configuration type.
@@ -57,7 +61,9 @@ func CreatePair[T any, CT any](ctx Context, options ...func(opts *RegistryOpts))
 		}
 	}
 
-	return createPairWithToken[T, CT](ctx, &registryOpts)
+	injectionCtx := ctx.Clone()
+	injectionCtx.AppendBreadcrumb(registryOpts.InjectionToken)
+	return createPairWithToken[T, CT](injectionCtx, &registryOpts)
 }
 
 // createPairWithToken is an internal function that creates a pair of instances using a specific token.
@@ -133,7 +139,7 @@ func createSingleWithToken[T any](ctx Context, opts *RegistryOpts) (T, error) {
 	tType := TypeName[T](token)
 	unknownInstance, err = f.Create(ctx, tType, noopCfg, opts)
 	_, isMissing := errors.Has(err, DependencyMissingErrorCode)
-	if err != nil && (!isMissing || len(token) == 0) {
+	if err != nil && !isMissing {
 		return typedInstance, errors.Wrap(err, "failed to create dependency first try", ErrorCreatingDependencyErrorCode)
 	}
 

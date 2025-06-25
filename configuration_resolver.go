@@ -87,21 +87,13 @@ func ConfigurationNodeLookup(c any, path string) (any, error) {
 	return current.Interface(), nil
 }
 
-func assembleConfigurationLookupPath(_ Context, opts *RegistryOpts) (string, error) {
-	if len(opts.InjectionToken) == 0 && len(opts.ConfigNodePath) == 0{
-		return "", errors.New("di.*RegistryOpts.InjectionToken and di.*RegistryOpts.ConfigNodePath cannot be both empty", ConfigurationLookupErrorCode)
-	}
-
+func assembleConfigurationLookupPath(ctx Context, opts *RegistryOpts) (string, error) {
 	lp := opts.ConfigNodePath
-	if len(opts.InjectionToken) > 0 {
-		lp = opts.InjectionToken.String() + "." + opts.ConfigNodePath
+	if len(lp) > 0 {
+		return lp, nil
 	}
 
-	if len(lp) == 0 {
-		return "", errors.New("lookup path cannot be empty", ConfigurationLookupErrorCode)
-	}
-
-	return lp, nil
+	return strings.Join(ctx.Breadcrumbs(), "."), nil
 }
 
 // ResolveDIReferences processes a JSON string and replaces "${di.XXXXX}" references

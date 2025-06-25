@@ -3,6 +3,7 @@ package di
 import (
 	goctx "context"
 	"github.com/pixie-sh/errors-go"
+	"slices"
 	"time"
 )
 
@@ -18,7 +19,12 @@ type Context interface {
 
 	RawConfiguration() ConfigRawData
 	Configuration() Configuration
+
 	Inner() goctx.Context
+	Clone() Context
+
+	Breadcrumbs() []string
+	AppendBreadcrumb(token InjectionToken)
 }
 
 // context implements the Context interface and wraps the standard context
@@ -26,8 +32,18 @@ type Context interface {
 type context struct {
 	ctx goctx.Context
 
-	rawCfg ConfigRawData
-	cfg    Configuration
+	rawCfg                   ConfigRawData
+	cfg                      Configuration
+	injectionTokenBreadcrumb []string
+}
+
+func (s *context) AppendBreadcrumb(token InjectionToken) {
+	if len(token) == 0 {
+		return
+	}
+
+	s.injectionTokenBreadcrumb = append(s.injectionTokenBreadcrumb, token.String())
+	return
 }
 
 func (s *context) RawConfiguration() ConfigRawData {
@@ -55,6 +71,19 @@ func (s *context) Value(key any) any {
 
 func (s *context) Inner() goctx.Context {
 	return s.ctx
+}
+
+func (s *context) Breadcrumbs() []string {
+	return s.injectionTokenBreadcrumb
+}
+
+func (s *context) Clone() Context {
+	return &context{
+		ctx:                      s.ctx,
+		rawCfg:                   s.rawCfg,
+		cfg:                      s.cfg,
+		injectionTokenBreadcrumb: slices.Clone(s.injectionTokenBreadcrumb),
+	}
 }
 
 // NewContext creates a new Context instance with optional context and configuration data.
@@ -119,9 +148,5 @@ func NewContext(args ...any) Context {
 		rawData = make(ConfigRawData)
 	}
 
-	return &context{ctx, rawData, cfg}
-}
-
-func NewContextWithConfig(cfg Configuration, args ...any) Context {
-	return NewContext(append(args, cfg)...)
+	return &context{ctx, rawData, cfg, nil}
 }
