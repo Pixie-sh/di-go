@@ -21,7 +21,6 @@ func Create[T any](ctx Context, options ...func(opts *RegistryOpts)) (T, error) 
 		}
 	}
 
-
 	injectionCtx := ctx.Clone()
 	injectionCtx.AppendBreadcrumb(registryOpts.InjectionToken)
 	return createSingleWithToken[T](injectionCtx, &registryOpts)
@@ -144,10 +143,11 @@ func createSingleWithToken[T any](ctx Context, opts *RegistryOpts) (T, error) {
 	}
 
 	if isMissing {
+		var secErr error
 		tType = TypeName[T]()
-		unknownInstance, err = f.Create(ctx, tType, noopCfg, opts)
-		if err != nil {
-			return typedInstance, errors.Wrap(err, "failed to create dependency second try", ErrorCreatingDependencyErrorCode)
+		unknownInstance, secErr = f.Create(ctx, tType, noopCfg, opts)
+		if secErr != nil {
+			return typedInstance, errors.Wrap(secErr, "failed to create dependency second try", ErrorCreatingDependencyErrorCode).WithNestedError(err)
 		}
 	}
 
@@ -197,10 +197,11 @@ func createSingleConfigurationWithToken[CT any](ctx Context, opts *RegistryOpts)
 	}
 
 	if isMissing {
+		var secErr error
 		tType = TypeName[CT]() //trying creation without token
-		unknownInstance, err = f.CreateConfiguration(ctx, tType, opts)
-		if err != nil {
-			return typedInstance, errors.Wrap(err, "failed to create configuration dependency second try", ErrorCreatingDependencyErrorCode)
+		unknownInstance, secErr = f.CreateConfiguration(ctx, tType, opts)
+		if secErr != nil {
+			return typedInstance, errors.Wrap(secErr, "failed to create configuration dependency second try", ErrorCreatingDependencyErrorCode).WithNestedError(err)
 		}
 	}
 
@@ -211,4 +212,3 @@ func createSingleConfigurationWithToken[CT any](ctx Context, opts *RegistryOpts)
 
 	return typedInstance, nil
 }
-
