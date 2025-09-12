@@ -139,7 +139,7 @@ func createSingleWithToken[T any](ctx Context, opts *RegistryOpts) (T, error) {
 	unknownInstance, err = f.Create(ctx, tType, noopCfg, opts)
 	_, isMissing := errors.Has(err, DependencyMissingErrorCode)
 	if err != nil && !isMissing {
-		return typedInstance, errors.Wrap(err, "failed to create dependency first try", ErrorCreatingDependencyErrorCode)
+		return typedInstance, errors.Wrap(err, "failed to create dependency of type '%s' with token '%s'", tType, token, ErrorCreatingDependencyErrorCode)
 	}
 
 	if isMissing {
@@ -147,14 +147,14 @@ func createSingleWithToken[T any](ctx Context, opts *RegistryOpts) (T, error) {
 		tType = TypeName[T]()
 		unknownInstance, secErr = f.Create(ctx, tType, noopCfg, opts)
 		if secErr != nil {
-			return typedInstance, errors.Wrap(secErr, "failed to create dependency second try", ErrorCreatingDependencyErrorCode).WithNestedError(err)
+			return typedInstance, errors.Wrap(secErr, "failed to create dependency '%s' without token", tType, ErrorCreatingDependencyErrorCode).WithNestedError(err)
 		}
 	}
 
 	// Try direct type assertion first
 	typedInstance, ok = SafeTypeAssert[T](unknownInstance)
 	if !ok {
-		panic(errors.New("failed to cast dependency to expected type", DependencyTypeMismatchErrorCode))
+		panic(errors.New("failed to cast dependency to expected type '%s'", tType, DependencyTypeMismatchErrorCode))
 	}
 
 	return typedInstance, nil
