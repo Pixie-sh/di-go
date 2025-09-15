@@ -2,9 +2,10 @@ package di
 
 import (
 	goctx "context"
-	"github.com/pixie-sh/errors-go"
 	"slices"
 	"time"
+
+	"github.com/pixie-sh/errors-go"
 )
 
 type ConfigRawData = map[string]interface{}
@@ -17,6 +18,8 @@ type Configuration interface {
 type Context interface {
 	goctx.Context
 
+	//RawConfiguration do not use this unless you are fully aware of the implications
+	//this map may be null if the context was created without a configuration or scoped configuration
 	RawConfiguration() ConfigRawData
 	Configuration() Configuration
 
@@ -25,6 +28,11 @@ type Context interface {
 
 	Breadcrumbs() []string
 	AppendBreadcrumb(token InjectionToken)
+	ClearBreadcrumbs()
+
+	ScopedConfiguration(node Configuration)
+	IsScoped() bool
+	ClearScoped()
 }
 
 // context implements the Context interface and wraps the standard context
@@ -35,6 +43,25 @@ type context struct {
 	rawCfg                   ConfigRawData
 	cfg                      Configuration
 	injectionTokenBreadcrumb []string
+	isScoped                 bool
+}
+
+func (s *context) ClearScoped() {
+	s.isScoped = false
+}
+
+func (s *context) ClearBreadcrumbs() {
+	s.injectionTokenBreadcrumb = nil
+}
+
+func (s *context) IsScoped() bool {
+	return s.isScoped
+}
+
+func (s *context) ScopedConfiguration(node Configuration) {
+	s.cfg = node
+	s.rawCfg = nil
+	s.isScoped = true
 }
 
 func (s *context) AppendBreadcrumb(token InjectionToken) {
@@ -79,10 +106,11 @@ func (s *context) Breadcrumbs() []string {
 
 func (s *context) Clone() Context {
 	return &context{
-		ctx:                      s.ctx,
-		rawCfg:                   s.rawCfg,
-		cfg:                      s.cfg,
-		injectionTokenBreadcrumb: slices.Clone(s.injectionTokenBreadcrumb),
+		s.ctx,
+		s.rawCfg,
+		s.cfg,
+		slices.Clone(s.injectionTokenBreadcrumb),
+		false,
 	}
 }
 
@@ -148,5 +176,5 @@ func NewContext(args ...any) Context {
 		rawData = make(ConfigRawData)
 	}
 
-	return &context{ctx, rawData, cfg, nil}
+	return &context{ctx, rawData, cfg, nil, false}
 }

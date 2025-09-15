@@ -2,8 +2,9 @@ package di
 
 import (
 	"fmt"
-	"github.com/pixie-sh/errors-go"
 	"reflect"
+
+	"github.com/pixie-sh/errors-go"
 )
 
 var injectionTokenMap = map[InjectionToken]struct{}{}
@@ -80,7 +81,7 @@ type RegistryOpts struct {
 	Registry       Registry       // The registry instance to use for dependency management
 	InjectionToken InjectionToken // Optional token to identify specific type registrations
 	ConfigNodePath string         // Path to configuration node in structured config
-	ConfigNode     any            // Configuration struct that's going to be returned if set whenever CreateConfiguration is called
+	ConfigNode     Configuration  // Configuration struct that's going to be returned if set whenever CreateConfiguration is called
 }
 
 // WithOpts returns a function that replaces all registry options with the provided options.
@@ -127,7 +128,7 @@ func WithConfigNodePath(path string, isAbsolutePath ...bool) func(opts *Registry
 
 // WithConfigNode returns a function that sets the configuration node path in the options.
 // This allows specifying which configuration path should be used for dependency management.
-func WithConfigNode(configNode any) func(opts *RegistryOpts) {
+func WithConfigNode(configNode Configuration) func(opts *RegistryOpts) {
 	return func(opts *RegistryOpts) {
 		opts.ConfigNode = configNode
 	}

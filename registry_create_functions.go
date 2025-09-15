@@ -4,6 +4,7 @@ import (
 	"reflect"
 
 	"github.com/pixie-sh/errors-go"
+	"github.com/pixie-sh/logger-go/logger"
 )
 
 // Create creates a new instance of type T using the provided context and options.
@@ -22,7 +23,29 @@ func Create[T any](ctx Context, options ...func(opts *RegistryOpts)) (T, error) 
 	}
 
 	injectionCtx := ctx.Clone()
+
+	log := logger.Clone().
+		With("type", TypeName[T]()).
+		With("token", registryOpts.InjectionToken)
+
+	//if config node is provided, we use it instead of the one from ctx
+	if !IsNilOrEmpty(registryOpts.ConfigNode) {
+		injectionCtx.ScopedConfiguration(registryOpts.ConfigNode)
+
+		//if original ctx is already scoped we need to reset the breadcrumbs
+		//so the new base for finding node is reset as well
+		if ctx.IsScoped() {
+			injectionCtx.ClearBreadcrumbs()
+			injectionCtx.ClearScoped()
+		}
+
+		log.Debug("di using config node not injection ctx '%+v'", injectionCtx)
+	} else {
+		log.Debug("di using config node from injection ctx")
+	}
+
 	injectionCtx.AppendBreadcrumb(registryOpts.InjectionToken)
+	log.With("breadcrumbs", injectionCtx.Breadcrumbs()).Debug("di appending breadcrumb")
 	return createSingleWithToken[T](injectionCtx, &registryOpts)
 }
 
@@ -136,10 +159,18 @@ func createSingleWithToken[T any](ctx Context, opts *RegistryOpts) (T, error) {
 	}
 
 	tType := TypeName[T](token)
+
 	unknownInstance, err = f.Create(ctx, tType, noopCfg, opts)
 	_, isMissing := errors.Has(err, DependencyMissingErrorCode)
 	if err != nil && !isMissing {
-		return typedInstance, errors.Wrap(err, "failed to create dependency of type '%s' with token '%s'", tType, token, ErrorCreatingDependencyErrorCode)
+		return typedInstance, errors.Wrap(
+			err,
+			"failed to create dependency of type '%s' with token '%s' with breadcrumbs '%s'",
+			tType,
+			token,
+			ctx.Breadcrumbs(),
+			ErrorCreatingDependencyErrorCode,
+		)
 	}
 
 	if isMissing {
@@ -147,7 +178,13 @@ func createSingleWithToken[T any](ctx Context, opts *RegistryOpts) (T, error) {
 		tType = TypeName[T]()
 		unknownInstance, secErr = f.Create(ctx, tType, noopCfg, opts)
 		if secErr != nil {
-			return typedInstance, errors.Wrap(secErr, "failed to create dependency '%s' without token", tType, ErrorCreatingDependencyErrorCode).WithNestedError(err)
+			return typedInstance, errors.Wrap(
+				secErr,
+				"failed to create dependency '%s' without token with breadcrumbs '%s'",
+				tType,
+				ctx.Breadcrumbs(),
+				ErrorCreatingDependencyErrorCode,
+			).WithNestedError(err)
 		}
 	}
 
@@ -177,7 +214,7 @@ func createSingleConfigurationWithToken[CT any](ctx Context, opts *RegistryOpts)
 		f = opts.Registry
 	}
 
-	if opts.ConfigNode != nil {
+	if !IsNilOrEmpty(opts.ConfigNode) {
 		log := Logger.With("opts.config_node", opts)
 		log.Debug("checking opts.ConfigNode for return type")
 		typedInstance, ok = SafeTypeAssert[CT](opts.ConfigNode)
@@ -186,14 +223,14 @@ func createSingleConfigurationWithToken[CT any](ctx Context, opts *RegistryOpts)
 			return typedInstance, nil
 		}
 
-		log.Debug("opts.ConfigNode is not of type CT. proceeding to create configuration")
+		log.Debug("di opts.ConfigNode is not of type CT '%s'. proceeding to create configuration from ctx", TypeName[CT]())
 	}
 
 	tType := TypeName[CT](token)
 	unknownInstance, err = f.CreateConfiguration(ctx, tType, opts)
 	_, isMissing := errors.Has(err, DependencyMissingErrorCode)
 	if err != nil && (!isMissing || len(token) == 0) {
-		return typedInstance, errors.Wrap(err, "failed to create configuration dependency first try", ErrorCreatingDependencyErrorCode)
+		return typedInstance, errors.Wrap(err, "failed to create dependency of type '%s' with breadcrumbs '%s'", tType, ctx.Breadcrumbs(), ErrorCreatingDependencyErrorCode)
 	}
 
 	if isMissing {
@@ -201,14 +238,32 @@ func createSingleConfigurationWithToken[CT any](ctx Context, opts *RegistryOpts)
 		tType = TypeName[CT]() //trying creation without token
 		unknownInstance, secErr = f.CreateConfiguration(ctx, tType, opts)
 		if secErr != nil {
-			return typedInstance, errors.Wrap(secErr, "failed to create configuration dependency second try", ErrorCreatingDependencyErrorCode).WithNestedError(err)
+			return typedInstance, errors.Wrap(secErr, "failed to create dependency '%s' without token with breadcrumbs '%s", tType, ctx.Breadcrumbs(), ErrorCreatingDependencyErrorCode).WithNestedError(err)
 		}
 	}
 
 	typedInstance, ok = SafeTypeAssert[CT](unknownInstance)
 	if !ok {
-		panic(errors.New("failed to cast dependency to expected type", DependencyTypeMismatchErrorCode))
+		panic(errors.New("failed to cast dependency to expected type '%s'", tType, DependencyTypeMismatchErrorCode))
 	}
 
 	return typedInstance, nil
+}
+
+func IsNilOrEmpty(i interface{}) bool {
+	if i == nil {
+		return true
+	}
+
+	switch reflect.TypeOf(i).Kind() {
+	case reflect.Ptr, reflect.Map, reflect.Chan, reflect.Slice, reflect.Func, reflect.Interface:
+		return reflect.ValueOf(i).IsNil()
+	case reflect.Array:
+		return false
+	case reflect.Struct:
+		return reflect.DeepEqual(i, reflect.Zero(reflect.TypeOf(i)).Interface())
+	default:
+	}
+
+	return false
 }
