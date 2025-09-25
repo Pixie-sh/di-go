@@ -4,7 +4,6 @@ import (
 	"reflect"
 
 	"github.com/pixie-sh/errors-go"
-	"github.com/pixie-sh/logger-go/logger"
 )
 
 // Create creates a new instance of type T using the provided context and options.
@@ -24,7 +23,7 @@ func Create[T any](ctx Context, options ...func(opts *RegistryOpts)) (T, error) 
 
 	injectionCtx := ctx.Clone()
 
-	log := logger.Clone().
+	log := Logger.Clone().
 		With("type", TypeName[T]()).
 		With("token", registryOpts.InjectionToken)
 

@@ -9,7 +9,7 @@ var Logger logger.Interface
 var Instance Registry
 
 func init() {
-	Logger = logger.Logger
+	Logger = logger.Logger.Clone()
 	Instance = NewRegistry()
 }
 
@@ -33,7 +33,6 @@ type Registry interface {
 
 	Register(typeNameOf string, createFn func(ctx Context, opts *RegistryOpts, c any) (any, error), opts *RegistryOpts) error
 	RegisterConfiguration(typeNameOf string, createCfgFn func(ctx Context, opts *RegistryOpts) (any, error), opts *RegistryOpts) error
-
 }
 
 type registration struct {
