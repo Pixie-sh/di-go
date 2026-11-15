@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="Dependency injection for Go built on generics and plain factory functions, with configuration injection, tokens and singletons.">
+<title>di-go</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;700;800&display=swap">
+<style>
+/* Layout: pixie.sh's look — black ground, white Inter, and the red/green/blue channel offset
+   on headings, labels and card edges. Single dark theme by design. */
+:root {
+  --bg: #0a0a0a;
+  --black: #000;
+  --raise: #1a1a1a;
+  --ink: #fff;
+  --muted: #b9b9b9;
+  --line: #2a2a2a;
+  --r: #e52320;
+  --g: #00ff00;
+  --b: #0000ff;
+  --g-soft: rgba(0, 255, 0, 0.1);
+  --g-line: rgba(0, 255, 0, 0.3);
+  --body: Inter, "Helvetica Neue", Arial, sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --split: -2px -1.2px 0 var(--r), -2.5px -0.6px 0 var(--g);
+  --edges: -3px 3px 0 var(--r), -1.5px -1.5px 0 var(--b), 2px -2px 0 var(--g);
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 400 1.0625rem/1.6 var(--body); }
+.wrap {
+  max-width: 68rem; margin-inline: auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+a { color: inherit; text-decoration-color: var(--g); text-underline-offset: 0.2em; transition: color 0.3s ease, text-shadow 0.3s ease; }
+a:hover { color: var(--g); text-shadow: -2px -0.1px 0 var(--b), -3px -0.1px 0 var(--r); }
+:focus-visible { outline: 2px solid var(--g); outline-offset: 3px; }
+code, pre, .mono { font-family: var(--mono); }
+p code, li code, td code { font-size: 0.88em; color: var(--g); background: var(--g-soft); padding: 0.08em 0.35em; border-radius: 3px; }
+h1, h2, h3 { font-family: var(--body); text-wrap: balance; margin: 0; }
+p { margin: 0; max-width: 62ch; }
+
+/* top bar */
+.top { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; flex-wrap: wrap; padding-block: 1.25rem; }
+.top .name { font: 700 1rem var(--body); letter-spacing: -0.01em; text-shadow: var(--split); }
+.top nav { display: flex; gap: 1.5rem; font-size: 0.95rem; }
+.top nav a { text-decoration: none; }
+
+/* hero */
+.hero { padding-block: 3.5rem 4rem; display: flex; flex-direction: column; gap: 2rem; }
+h1 {
+  font-size: clamp(2.5rem, 7.4vw, 5.5rem); font-weight: 800; line-height: 1; letter-spacing: -0.04em; max-width: 14ch;
+  padding-left: 0.1em;
+  text-shadow: -0.06em 0.04em 0 var(--r), -0.06em -0.03em 0 var(--b), -0.08em -0.07em 0 var(--g);
+}
+h1 em { font-style: normal; }
+.lede { font-size: 1.25rem; font-weight: 300; line-height: 1.5; max-width: 54ch; }
+.cmd { display: flex; align-items: stretch; background: var(--black); color: var(--ink); max-width: 100%; width: fit-content; box-shadow: var(--edges); margin-left: 3px; }
+.cmd pre { margin: 0; padding: 0.9rem 1rem; overflow-x: auto; font-size: 0.9rem; min-width: 0; }
+.cmd pre::before { content: "$ "; color: var(--g); }
+.cmd button { font: 700 0.8rem var(--body); color: var(--g); background: var(--g-soft); border: 0; border-left: 2px solid var(--g); padding: 0 1.1rem; cursor: pointer; transition: background 0.2s ease; }
+.cmd button:hover { background: rgba(0, 255, 0, 0.2); }
+.fine { font-size: 0.92rem; color: var(--muted); }
+
+/* bands: the green rule with its blue echo, as on pixie.sh's track line */
+section { padding-block: 4rem; display: flex; flex-direction: column; gap: 2rem; position: relative; }
+section::before { content: ""; position: absolute; top: 0; left: 0; width: 100%; height: 4px; background: var(--g); box-shadow: -3px 2px 0 var(--b); }
+.label { font: 400 0.95rem var(--body); letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink); text-shadow: var(--split); }
+h2 { font-size: clamp(1.9rem, 4vw, 3rem); font-weight: 700; line-height: 1.08; letter-spacing: -0.03em; max-width: 22ch; }
+h3 { font-size: 1.15rem; font-weight: 700; letter-spacing: -0.01em; }
+.head { display: flex; flex-direction: column; gap: 0.85rem; }
+.head p { font-weight: 300; }
+
+/* before / after figure */
+.fig { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr)); gap: 2rem; padding-inline: 3px; }
+.panel { background: var(--black); box-shadow: var(--edges); padding: 1.35rem; display: flex; flex-direction: column; gap: 1.1rem; min-width: 0; }
+.panel h3 { font: 700 0.8rem var(--body); letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+.rows { display: grid; gap: 0.5rem; }
+.row { display: grid; grid-template-columns: 1fr 2.5rem 1fr; align-items: center; }
+.chip { font: 700 0.85rem var(--body); letter-spacing: 0.02em; border: 1px solid var(--line); background: var(--raise); padding: 0.55rem 0.7rem; min-width: 0; overflow-wrap: anywhere; }
+.chip.silo { border: 1px dashed var(--r); background: transparent; color: var(--muted); font-weight: 400; }
+.wire { height: 0; border-top: 1px dashed var(--muted); }
+.merge { display: grid; grid-template-columns: 1fr 2.5rem 1fr; align-items: stretch; }
+.merge .rows { align-content: center; }
+.merge .bus { border: 2px solid var(--g); border-left: 0; margin-block: 1.1rem; box-shadow: 2px 1px 0 var(--b); }
+.owner { display: flex; flex-direction: column; justify-content: center; gap: 0.5rem; }
+.owner .chip { border: 2px solid var(--g); background: var(--g-soft); color: var(--g); }
+.owner .down { font: 400 0.8rem var(--mono); color: var(--muted); padding-left: 0.7rem; }
+.panel p { font-size: 0.97rem; color: var(--muted); }
+
+/* lists of points */
+.points { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 17rem), 1fr)); gap: 2rem 2.5rem; }
+.points div { display: flex; flex-direction: column; gap: 0.45rem; min-width: 0; }
+.points h3 { text-shadow: -2px 1px 0 var(--b); }
+.points p { font-size: 1rem; color: var(--muted); }
+
+/* tables */
+.scroll { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 0.95rem; }
+th, td { text-align: left; padding: 0.7rem 1rem 0.7rem 0; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th { font: 700 0.75rem var(--body); letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); border-bottom-color: var(--r); }
+td.mono, td .mono { font-size: 0.88rem; font-variant-numeric: tabular-nums; }
+.yes { color: var(--g); font-weight: 700; }
+.no { color: var(--muted); }
+
+/* tabs */
+.tabs { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.tabs button { font: 700 0.85rem var(--body); color: var(--muted); background: transparent; border: 2px solid var(--line); padding: 0.45rem 0.85rem; cursor: pointer; transition: all 0.2s ease; }
+.tabs button:hover { color: var(--g); border-color: var(--g-line); }
+.tabs button[aria-selected="true"] { color: var(--g); border-color: var(--g); background: var(--g-soft); }
+.snippet { background: var(--black); color: var(--ink); border: 2px solid rgba(0, 255, 0, 0.2); overflow-x: auto; }
+.snippet pre { margin: 0; padding: 1rem 1.1rem; font-size: 0.88rem; line-height: 1.55; }
+.snippet .where { display: block; color: var(--g); opacity: 0.7; }
+
+.status { display: grid; gap: 0.7rem; padding: 0; margin: 0; list-style: none; max-width: 62ch; }
+.status li { display: grid; grid-template-columns: 6.5rem 1fr; gap: 0.75rem; align-items: baseline; }
+.status .tag { font: 700 0.75rem var(--body); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.status .tag.ok { color: var(--g); }
+
+footer { border-top: 1px solid var(--r); box-shadow: 0 -2px 0 -1px var(--b); padding-block: 2rem 3rem; font-size: 0.92rem; color: var(--muted); display: flex; flex-wrap: wrap; gap: 0.5rem 1.5rem; justify-content: space-between; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+
+/* code panels and library grid, added for the library pages */
+.snippet[hidden] { display: none; }
+.snippet .out { display: block; color: var(--muted); }
+.fig pre { margin: 0; font-size: 0.82rem; line-height: 1.5; overflow-x: auto; color: var(--ink); }
+.fig .panel.good { box-shadow: -3px 3px 0 var(--g), -1.5px -1.5px 0 var(--b), 2px -2px 0 var(--g); }
+.bytes { display: grid; grid-template-columns: 6fr 2fr 8fr; gap: 0.5rem; padding-inline: 3px; }
+.bytes div { background: var(--black); box-shadow: var(--edges); padding: 1rem; min-width: 0; display: flex; flex-direction: column; gap: 0.3rem; }
+.bytes b { font: 700 1rem var(--body); }
+.bytes span { font-size: 0.85rem; color: var(--muted); }
+.bytes .scope { box-shadow: -3px 3px 0 var(--g), -1.5px -1.5px 0 var(--g), 2px -2px 0 var(--g); }
+.bytes .scope b { color: var(--g); }
+td.wrap-ok { white-space: normal; min-width: 12rem; }
+.libs { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr)); gap: 1.5rem; padding-inline: 3px; }
+.libs a { background: var(--black); box-shadow: var(--edges); padding: 1.1rem; text-decoration: none; display: flex; flex-direction: column; gap: 0.35rem; }
+.libs a b { font: 700 1.05rem var(--body); }
+.libs a span { font-size: 0.92rem; color: var(--muted); }
+.libs a[aria-current] { box-shadow: -3px 3px 0 var(--g), -1.5px -1.5px 0 var(--g), 2px -2px 0 var(--g); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <span class="name">di-go</span>
+    <nav>
+      <a href="#how">How it works</a>
+      <a href="#usage">Usage</a>
+      <a href="#compare">Compared</a>
+      <a href="https://github.com/pixie-sh/di-go">GitHub</a>
+      <a href="https://pixie.sh">pixie.sh</a>
+    </nav>
+  </header>
+
+  <div class="hero">
+    <h1>Dependency injection <em>you can read.</em></h1>
+    <p class="lede">di-go wires Go services with generics and plain factory functions. Register a type, ask for it, and get it back typed. No code generation, and no reflection over constructor signatures.</p>
+    <div class="cmd">
+      <pre id="install-cmd">go get github.com/pixie-sh/di-go</pre>
+      <button type="button" id="copy-install" data-copy="install-cmd">Copy</button>
+    </div>
+    <p class="fine">Go 1.24+. MIT licensed. The full reference is in the <a href="https://github.com/pixie-sh/di-go#readme">README</a>.</p>
+  </div>
+
+  <section id="problem">
+    <div class="head">
+      <span class="label">The problem</span>
+      <h2>Wiring by hand does not scale. Wiring by magic is hard to debug.</h2>
+      <p>Every service starts with a <code>main.go</code> that builds everything in the right order. It grows with each dependency, and a container that hides the wiring makes a missing dependency hard to trace.</p>
+    </div>
+    <div class="fig">
+      <div class="panel">
+        <h3>By hand, in main.go</h3>
+        <pre>cfg := loadConfig()
+primary := newDatabase(cfg.Primary)
+replica := newDatabase(cfg.Replica)
+cache := newCache(cfg.Cache)
+users := newUserRepository(primary)
+orders := newOrderRepository(primary, replica)
+mailer := newMailer(cfg.Mail)
+billing := newBilling(orders, mailer, cache)
+api := newAPI(users, orders, billing)
+// ...and again in every test and every binary</pre>
+        <p>The order is yours to maintain, and every binary repeats it.</p>
+      </div>
+      <div class="panel good">
+        <h3>With di-go</h3>
+        <pre>di.Register[*Billing](func(ctx di.Context, _ *di.RegistryOpts) (*Billing, error) {
+    orders, err := di.Create[*OrderRepository](ctx)
+    if err != nil {
+        return nil, err
+    }
+    mailer, err := di.Create[*Mailer](ctx)
+    if err != nil {
+        return nil, err
+    }
+    return newBilling(orders, mailer), nil
+})
+
+api, err := di.Create[*API](ctx)</pre>
+        <p>Each type says what it needs. The graph is built when you ask for it.</p>
+      </div>
+    </div>
+    <div class="points">
+      <div><h3>A dependency is a function</h3><p>The factory is ordinary Go. You can read it, step through it and set a breakpoint in it.</p></div>
+      <div><h3>The compiler checks the types</h3><p><code>Create[*API](ctx)</code> returns a <code>*API</code>. There are no casts and no <code>interface{}</code> at the call site.</p></div>
+      <div><h3>Errors point at the cause</h3><p>A failed creation names the missing dependency and the path through the graph that led to it.</p></div>
+    </div>
+  </section>
+
+  <section id="how">
+    <div class="head">
+      <span class="label">How it works</span>
+      <h2>Register a factory. Ask for the type.</h2>
+      <p>Registration order does not matter. Nothing is built until <code>Create</code> is called, and then only what the requested type needs.</p>
+    </div>
+    <div class="points">
+      <div><h3>Configuration injection</h3><p>Register a type with its configuration type and the factory receives the right node of your config, already typed.</p></div>
+      <div><h3>Tokens</h3><p>Register the same type more than once, such as a primary and a replica database, and pick one by name.</p></div>
+      <div><h3>Config references</h3><p><code>${di.path.to.node}</code> in JSON reuses another node, so shared settings are written once.</p></div>
+      <div><h3>Singletons</h3><p>An instance is created on first use and reused afterwards.</p></div>
+      <div><h3>Isolated registries</h3><p>Tests build their own registry instead of touching the global one.</p></div>
+      <div><h3>Typed errors</h3><p>Failures are <a href="https://pixie-sh.github.io/errors-go/">errors-go</a> errors with a code you can check.</p></div>
+    </div>
+  </section>
+
+  <section id="usage">
+    <div class="head">
+      <span class="label">Usage</span>
+      <h2>From first service to a configured graph.</h2>
+    </div>
+    <div>
+      <div class="tabs" role="tablist" aria-label="Example">
+        <button type="button" role="tab" id="tab-usage-0" aria-controls="snip-usage-0" aria-selected="true">Quick start</button>
+        <button type="button" role="tab" id="tab-usage-1" aria-controls="snip-usage-1" aria-selected="false">Configuration</button>
+        <button type="button" role="tab" id="tab-usage-2" aria-controls="snip-usage-2" aria-selected="false">Tokens</button>
+        <button type="button" role="tab" id="tab-usage-3" aria-controls="snip-usage-3" aria-selected="false">Config references</button>
+        <button type="button" role="tab" id="tab-usage-4" aria-controls="snip-usage-4" aria-selected="false">Tests</button>
+      </div>
+    </div>
+    <div class="snippet" id="snip-usage-0" role="tabpanel" aria-labelledby="tab-usage-0"><pre>type Database struct{ DSN string }
+type UserRepository struct{ DB *Database }
+type UserService struct{ Repo *UserRepository }
+
+di.Register[*Database](func(di.Context, *di.RegistryOpts) (*Database, error) {
+    return &amp;Database{DSN: &quot;postgres://localhost/app&quot;}, nil
+})
+
+di.Register[*UserRepository](func(ctx di.Context, _ *di.RegistryOpts) (*UserRepository, error) {
+    db, err := di.Create[*Database](ctx)
+    if err != nil {
+        return nil, err
+    }
+    return &amp;UserRepository{DB: db}, nil
+})
+
+di.Register[*UserService](func(ctx di.Context, _ *di.RegistryOpts) (*UserService, error) {
+    repo, err := di.Create[*UserRepository](ctx)
+    if err != nil {
+        return nil, err
+    }
+    return &amp;UserService{Repo: repo}, nil
+})
+
+svc, err := di.Create[*UserService](di.NewContext())
+fmt.Println(svc.Repo.DB.DSN) // postgres://localhost/app</pre></div>
+    <div class="snippet" id="snip-usage-1" role="tabpanel" aria-labelledby="tab-usage-1"><pre>type DatabaseConfig struct {
+    Host string `json:&quot;host&quot;`
+    Port int    `json:&quot;port&quot;`
+}
+
+// A configuration type says how to find a child node by path.
+func (c DatabaseConfig) LookupNode(path string) (any, error) {
+    return di.ConfigurationNodeLookup(c, path)
+}
+
+// The factory receives its configuration as a typed argument.
+func newDatabase(_ di.Context, _ *di.RegistryOpts, cfg DatabaseConfig) (*Database, error) {
+    return &amp;Database{DSN: fmt.Sprintf(&quot;%s:%d&quot;, cfg.Host, cfg.Port)}, nil
+}
+
+di.RegisterPair[*Database, DatabaseConfig](newDatabase, di.ConfigurationLookup[DatabaseConfig])</pre></div>
+    <div class="snippet" id="snip-usage-2" role="tabpanel" aria-labelledby="tab-usage-2"><pre>var (
+    PrimaryDB = di.RegisterInjectionToken(&quot;primary&quot;)
+    ReplicaDB = di.RegisterInjectionToken(&quot;replica&quot;)
+)
+
+di.RegisterPair[*Database, DatabaseConfig](newDatabase, di.ConfigurationLookup[DatabaseConfig], di.WithToken(PrimaryDB))
+di.RegisterPair[*Database, DatabaseConfig](newDatabase, di.ConfigurationLookup[DatabaseConfig], di.WithToken(ReplicaDB))
+
+// The token is also the path of the configuration node.
+ctx := di.NewContext(&amp;AppConfig{
+    Primary: DatabaseConfig{Host: &quot;db.internal&quot;, Port: 5432},
+    Replica: DatabaseConfig{Host: &quot;replica.internal&quot;, Port: 5433},
+})
+
+primary, _ := di.CreatePair[*Database, DatabaseConfig](ctx, di.WithToken(PrimaryDB))
+replica, _ := di.CreatePair[*Database, DatabaseConfig](ctx, di.WithToken(ReplicaDB))
+
+fmt.Println(primary.DSN) // db.internal:5432
+fmt.Println(replica.DSN) // replica.internal:5433</pre></div>
+    <div class="snippet" id="snip-usage-3" role="tabpanel" aria-labelledby="tab-usage-3"><pre>// config.json
+{
+  &quot;defaults&quot;: { &quot;host&quot;: &quot;db.internal&quot;, &quot;port&quot;: 5432 },
+  &quot;primary&quot;: &quot;${di.defaults}&quot;,
+  &quot;replica&quot;: { &quot;host&quot;: &quot;replica.internal&quot;, &quot;port&quot;: 5433 }
+}
+
+// Resolve the references while unmarshalling.
+func (c *AppConfig) UnmarshalJSON(b []byte) error {
+    type plain AppConfig
+    return di.UnmarshalJSONWithDIResolution(b, (*plain)(c))
+}
+
+var cfg AppConfig
+err := json.Unmarshal(raw, &amp;cfg)
+// cfg.Primary == DatabaseConfig{Host: &quot;db.internal&quot;, Port: 5432}</pre></div>
+    <div class="snippet" id="snip-usage-4" role="tabpanel" aria-labelledby="tab-usage-4"><pre>// A registry of its own keeps the test independent of the global one.
+reg := di.NewRegistry()
+
+di.Register[*Database](func(di.Context, *di.RegistryOpts) (*Database, error) {
+    return &amp;Database{DSN: &quot;memory&quot;}, nil
+}, di.WithRegistry(reg))
+
+db, err := di.Create[*Database](di.NewContext(), di.WithRegistry(reg))</pre></div>
+  </section>
+
+  <section id="compare">
+    <div class="head">
+      <span class="label">How it compares</span>
+      <h2>Where di-go sits next to dig, fx and wire.</h2>
+      <p>The other tools are good at what they do. This is the trade di-go makes.</p>
+    </div>
+    <div class="scroll">
+      <table>
+        <thead><tr><th></th><th>di-go</th><th>dig / fx</th><th>wire</th></tr></thead>
+        <tbody>
+          <tr><td class="wrap-ok">How a dependency is resolved</td><td class="wrap-ok">a generic call, <code>Create[T]</code>, inside your factory</td><td class="wrap-ok">reflection over constructor parameters</td><td class="wrap-ok">generated Go code</td></tr>
+          <tr><td class="wrap-ok">Build step</td><td class="wrap-ok">none</td><td class="wrap-ok">none</td><td class="wrap-ok">code generation</td></tr>
+          <tr><td class="wrap-ok">Missing dependency found</td><td class="wrap-ok">at run time, with the path through the graph</td><td class="wrap-ok">at run time</td><td class="wrap-ok">at compile time</td></tr>
+          <tr><td class="wrap-ok">Several instances of one type</td><td class="wrap-ok">tokens</td><td class="wrap-ok">name tags</td><td class="wrap-ok">distinct types</td></tr>
+          <tr><td class="wrap-ok">Configuration injection</td><td class="wrap-ok">built in</td><td class="wrap-ok">bring your own</td><td class="wrap-ok">bring your own</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="fine">If you want missing dependencies caught by the compiler, wire is the stricter choice. di-go keeps the wiring in plain functions and adds configuration on top.</p>
+  </section>
+
+  <section id="family">
+    <div class="head">
+      <span class="label">Open source at Pixie</span>
+      <h2>One of a set that works together.</h2>
+      <p>These libraries run in our own services every day. Use one, or all of them.</p>
+    </div>
+    <div class="libs">
+      <a href="https://pixie-sh.github.io/memory-sharing-mcp/"><b>memory-sharing-mcp</b><span>One shared memory store for every agent CLI.</span></a>
+      <a href="https://pixie-sh.github.io/di-go/" aria-current="page"><b>di-go</b><span>Dependency injection you can read.</span></a>
+      <a href="https://pixie-sh.github.io/ulid-go/"><b>ulid-go</b><span>Sortable IDs that carry their entity type.</span></a>
+      <a href="https://pixie-sh.github.io/errors-go/"><b>errors-go</b><span>Errors with a code and an HTTP status.</span></a>
+      <a href="https://pixie-sh.github.io/database-helpers-go/"><b>database-helpers-go</b><span>Query pipelines for SQL and Elasticsearch.</span></a>
+      <a href="https://pixie-sh.github.io/core-go/"><b>core-go</b><span>The core libraries behind our Go services.</span></a>
+    </div>
+  </section>
+
+  <footer>
+    <span>Made by <a href="https://pixie.sh">Pixie</a>. MIT licensed.</span>
+    <a href="https://github.com/pixie-sh/di-go">github.com/pixie-sh/di-go</a>
+  </footer>
+</div>
+
+<script>
+(function () {
+  document.querySelectorAll('.tabs').forEach(function (list) {
+    var tabs = list.querySelectorAll('button');
+    function show(tab) {
+      tabs.forEach(function (t) {
+        var on = t === tab;
+        t.setAttribute('aria-selected', on ? 'true' : 'false');
+        document.getElementById(t.getAttribute('aria-controls')).hidden = !on;
+      });
+    }
+    tabs.forEach(function (t) { t.addEventListener('click', function () { show(t); }); });
+    show(tabs[0]);
+  });
+
+  var btn = document.getElementById('copy-install');
+  btn.addEventListener('click', function () {
+    var el = document.getElementById(btn.dataset.copy);
+    function select() {
+      var r = document.createRange(); r.selectNodeContents(el);
+      var s = getSelection(); s.removeAllRanges(); s.addRange(r);
+    }
+    try {
+      navigator.clipboard.writeText(el.textContent).then(function () {
+        btn.textContent = 'Copied';
+        setTimeout(function () { btn.textContent = 'Copy'; }, 1500);
+      }, select);
+    } catch (e) { select(); }
+  });
+})();
+</script>
+</body>
+</html>
