@@ -25,6 +25,12 @@ func ConfigurationLookup[T any](ctx Context, opts *RegistryOpts) (T, error) {
 		return result, errors.Wrap(err, "assembleConfigurationLookupPath error", ConfigurationLookupErrorCode)
 	}
 
+	if raw := ctx.RawConfiguration(); raw != nil {
+		if _, rawErr := ExtractNodeFromJSONPath(raw, lookupPath); rawErr != nil {
+			return result, errors.New("configuration path '%s' not found in JSON", lookupPath, ConfigurationLookupErrorCode)
+		}
+	}
+
 	abstractNode, err := ctx.Configuration().LookupNode(lookupPath)
 	if err != nil || abstractNode == nil {
 		return result, errors.Wrap(err, "di.Context.Configuration().LookupNode() failed", ConfigurationLookupErrorCode)
